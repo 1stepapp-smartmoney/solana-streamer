@@ -336,14 +336,16 @@ impl ShredStreamGrpc {
     }
 
     /// 订阅ShredStream事件（支持批处理和即时处理）
-    pub async fn shredstream_subscribe<F>(
+    pub async fn shredstream_subscribe<F,FP>(
         &self,
         protocols: Vec<Protocol>,
         bot_wallet: Option<Pubkey>,
         callback: F,
+        tx_pack_callback: Option<FP>
     ) -> AnyResult<()>
     where
         F: Fn(Box<dyn UnifiedEvent>) + Send + Sync + 'static,
+        FP: Fn(Vec<Box<dyn UnifiedEvent>>) + Send + Sync + 'static,
     {
         // 启动自动性能监控（如果启用）
         if self.config.enable_metrics {
@@ -360,8 +362,8 @@ impl ShredStreamGrpc {
             // 批处理模式
             self.process_with_batch(stream, tx, rx, protocols, bot_wallet, callback).await
         } else {
-            // 即时处理模式
-            self.process_immediate(stream, tx, rx, protocols, bot_wallet, callback).await
+            self.process_immediate_in_tx_pack(stream, tx, rx, protocols, bot_wallet, callback, tx_pack_callback).await
+
         }
     }
 
@@ -487,6 +489,76 @@ impl ShredStreamGrpc {
         Ok(())
     }
 
+    async fn process_immediate_in_tx_pack<F, FP>(
+        &self,
+        mut stream: tonic::codec::Streaming<crate::protos::shredstream::Entry>,
+        mut tx: mpsc::Sender<TransactionWithSlot>,
+        mut rx: mpsc::Receiver<TransactionWithSlot>,
+        protocols: Vec<Protocol>,
+        bot_wallet: Option<Pubkey>,
+        callback: F,
+        tx_pack_callback: Option<FP>,
+    ) -> AnyResult<()>
+    where
+        F: Fn(Box<dyn UnifiedEvent>) + Send + Sync + 'static,
+        FP: Fn(Vec<Box<dyn UnifiedEvent>>) + Send + Sync + 'static,
+    {
+        tokio::spawn(async move {
+            while let Some(message) = stream.next().await {
+                match message {
+                    Ok(msg) => {
+                        if let Ok(entries) = bincode::deserialize::<Vec<Entry>>(&msg.entries) {
+                            for entry in entries {
+                                for transaction in entry.transactions {
+                                    let _ = tx.try_send(TransactionWithSlot {
+                                        transaction: transaction.clone(),
+                                        slot: msg.slot,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    Err(error) => {
+                        error!("Stream error: {error:?}");
+                        break;
+                    }
+                }
+            }
+        });
+
+        let self_clone = self.clone();
+        if let Some(pack_callback) = tx_pack_callback {
+            while let Some(transaction_with_slot) = rx.next().await {
+                if let Err(e) = self_clone.process_transaction_immediate_in_tx_pack(
+                    transaction_with_slot,
+                    protocols.clone(),
+                    bot_wallet,
+                    &pack_callback,
+                )
+                    .await
+                {
+                    error!("Error processing transaction: {e:?}");
+                }
+            }
+        } else {
+            while let Some(transaction_with_slot) = rx.next().await {
+                if let Err(e) = self_clone.process_transaction_immediate(
+                    transaction_with_slot,
+                    protocols.clone(),
+                    bot_wallet,
+                    &callback,
+                )
+                    .await
+                {
+                    error!("Error processing transaction: {e:?}");
+                }
+            }
+        }
+
+
+        Ok(())
+    }
+
     /// 即时处理单个交易
     async fn process_transaction_immediate<F>(
         &self,
@@ -541,6 +613,68 @@ impl ShredStreamGrpc {
         // 记录慢处理操作
         if processing_time_ms > 5.0 {
             log::warn!("ShredStream transaction processing took {}ms for {} events", 
+                      processing_time_ms, event_count);
+        }
+
+        Ok(())
+    }
+
+    /// 单个Tx的事件打包返回
+    async fn process_transaction_immediate_in_tx_pack<F>(
+        &self,
+        transaction_with_slot: TransactionWithSlot,
+        protocols: Vec<Protocol>,
+        bot_wallet: Option<Pubkey>,
+        callback: &F,
+    ) -> AnyResult<()>
+    where
+        F: Fn(Vec<Box<dyn UnifiedEvent>>) + Send + Sync,
+    {
+        let start_time = std::time::Instant::now();
+        let program_received_time_ms = chrono::Utc::now().timestamp_millis();
+        let slot = transaction_with_slot.slot;
+        let versioned_tx = transaction_with_slot.transaction;
+        let signature = versioned_tx.signatures[0];
+
+        // 预分配向量容量
+        let mut all_events = Vec::with_capacity(protocols.len() * 2);
+
+        for protocol in protocols {
+            let parser = EventParserFactory::create_parser(protocol.clone());
+            let events = parser
+                .parse_versioned_transaction(
+                    &versioned_tx,
+                    &signature.to_string(),
+                    Some(slot),
+                    None,
+                    program_received_time_ms,
+                    bot_wallet,
+                )
+                .await
+                .unwrap_or_else(|_e| vec![]);
+            all_events.extend(events);
+        }
+
+        // 保存事件数量用于日志记录
+        let event_count = all_events.len();
+
+        // // 即时处理事件
+        // for event in all_events {
+        //     callback(event);
+        // }
+
+        callback(all_events);
+
+        // 更新性能指标
+        let processing_time = start_time.elapsed();
+        let processing_time_ms = processing_time.as_millis() as f64;
+
+        // 实际调用性能指标更新
+        self.update_metrics(event_count as u64, processing_time_ms).await;
+
+        // 记录慢处理操作
+        if processing_time_ms > 5.0 {
+            log::warn!("ShredStream transaction processing took {}ms for {} events",
                       processing_time_ms, event_count);
         }
 

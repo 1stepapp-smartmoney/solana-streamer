@@ -121,6 +121,9 @@ impl PumpFunEventParser {
         offset += symbol_len;
         let uri_len = u32::from_le_bytes(data[offset..offset + 4].try_into().unwrap()) as usize;
         offset += 4;
+        if offset + uri_len > data.len() {
+            return None; // 防止越界
+        }
         let uri = String::from_utf8_lossy(&data[offset..offset + uri_len]);
         offset += uri_len;
         let creator = if offset + 32 <= data.len() {

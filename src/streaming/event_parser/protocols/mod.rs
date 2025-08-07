@@ -3,6 +3,7 @@ pub mod pumpswap;
 pub mod bonk;
 pub mod raydium_cpmm;
 pub mod raydium_clmm;
+pub mod photon;
 
 pub use pumpfun::PumpFunEventParser;
 pub use pumpswap::PumpSwapEventParser;

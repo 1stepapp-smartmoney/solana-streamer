@@ -16,6 +16,7 @@ use solana_streamer_sdk::{
                     parser::RAYDIUM_CLMM_PROGRAM_ID, RaydiumClmmSwapEvent, RaydiumClmmSwapV2Event,
                 },
                 raydium_cpmm::{parser::RAYDIUM_CPMM_PROGRAM_ID, RaydiumCpmmSwapEvent},
+                photon::{parser::PHOTON_PROGRAM_ID, PhotonPumpFunTradeEvent},
             },
             Protocol, UnifiedEvent,
         },
@@ -111,7 +112,7 @@ async fn test_shreds() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     println!("Listening for events, press Ctrl+C to stop...");
-    shred_stream.shredstream_subscribe(protocols, None, callback).await?;
+    shred_stream.shredstream_subscribe::<_,fn(Vec<Box<dyn UnifiedEvent>>)>(protocols, None, callback, None).await?;
 
     Ok(())
 }

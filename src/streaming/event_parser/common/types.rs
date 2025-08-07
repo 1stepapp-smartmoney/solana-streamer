@@ -87,6 +87,7 @@ pub enum ProtocolType {
     Bonk,
     RaydiumCpmm,
     RaydiumClmm,
+    PhotonProtocol,
     SDKSystem,
 }
 
@@ -125,6 +126,11 @@ pub enum EventType {
     RaydiumClmmSwap,
     RaydiumClmmSwapV2,
 
+    // Photon Protocol events
+    PhotonPumpFunBuy,
+    PhotonPumpFunSell,
+    PhotonPumpSwapTrade,
+
     // Common events
     SDKSystem,
     Unknown,
@@ -153,6 +159,9 @@ impl EventType {
             EventType::RaydiumCpmmSwapBaseOutput => "RaydiumCpmmSwapBaseOutput".to_string(),
             EventType::RaydiumClmmSwap => "RaydiumClmmSwap".to_string(),
             EventType::RaydiumClmmSwapV2 => "RaydiumClmmSwapV2".to_string(),
+            EventType::PhotonPumpFunBuy => "PhotonPumpFunBuy".to_string(),
+            EventType::PhotonPumpFunSell => "PhotonPumpFunSell".to_string(),
+            EventType::PhotonPumpSwapTrade => "PhotonPumpSwapTrade".to_string(),
             EventType::SDKSystem => "SDKSystem".to_string(),
             EventType::Unknown => "Unknown".to_string(),
         }

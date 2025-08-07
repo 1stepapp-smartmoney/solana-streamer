@@ -788,7 +788,7 @@ impl YellowstoneGrpc {
             }
         });
 
-        tokio::signal::ctrl_c().await?;
+        //tokio::signal::ctrl_c().await?;
         Ok(())
     }
 
