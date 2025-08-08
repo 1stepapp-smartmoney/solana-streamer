@@ -7,41 +7,39 @@ use crate::streaming::event_parser::{
     common::{read_u128_le, read_u64_le, read_u8_le, EventMetadata, EventType, ProtocolType},
     core::traits::{EventParser, GenericEventParseConfig, GenericEventParser, UnifiedEvent},
 };
-use crate::streaming::event_parser::protocols::meteora_dbc::discriminators;
-use crate::streaming::event_parser::protocols::meteora_dbc::events::MeteoraDBCSwapEvent;
+use crate::streaming::event_parser::protocols::meteora_dammv2::{discriminators, MeteoraDAMMv2SwapEvent};
 use crate::streaming::event_parser::protocols::meteora_dbc::types::TradeDirection;
-use crate::streaming::event_parser::protocols::pumpfun::PumpFunTradeEvent;
 
 /// Meteroa DBC程序ID
-pub const METEORA_DBC_PROGRAM_ID: Pubkey =
-    solana_sdk::pubkey!("dbcij3LWUppWqq96dh6gJWwBifmcGfLSB5D4DuSMaqN");
+pub const METEORA_DAMM_V2_PROGRAM_ID: Pubkey =
+    solana_sdk::pubkey!("cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG");
 
 /// Meteroa DBC事件解析器
-pub struct MeteoraDBCEventParser {
+pub struct MeteoraDAMMv2EventParser {
     inner: GenericEventParser,
 }
 
-impl Default for MeteoraDBCEventParser {
+impl Default for MeteoraDAMMv2EventParser {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl MeteoraDBCEventParser {
+impl MeteoraDAMMv2EventParser {
     pub fn new() -> Self {
         // 配置所有事件类型
         let configs = vec![
             GenericEventParseConfig {
                 inner_instruction_discriminator: discriminators::TRADE_EVENT,
                 instruction_discriminator: discriminators::SWAP,
-                event_type: EventType::MeteoraDBCSwap,
+                event_type: EventType::MeteoraDAMMv2Swap,
                 inner_instruction_parser: Self::parse_trade_inner_instruction,
                 instruction_parser: Self::parse_swap_instruction,
             },
         ];
 
         let inner =
-            GenericEventParser::new(METEORA_DBC_PROGRAM_ID, ProtocolType::MeteoraDBC, configs);
+            GenericEventParser::new(METEORA_DAMM_V2_PROGRAM_ID, ProtocolType::MeteoraDAMMv2, configs);
 
         Self { inner }
     }
@@ -51,16 +49,16 @@ impl MeteoraDBCEventParser {
         _data: &[u8],
         _metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        if let Ok(event) = borsh::from_slice::<MeteoraDBCSwapEvent>(_data) {
+        if let Ok(event) = borsh::from_slice::<MeteoraDAMMv2SwapEvent>(_data) {
             let mut metadata = _metadata;
             metadata.set_id(format!(
                 "{}-{}-{}-{}",
                 metadata.signature,
                 event.pool,
-                event.config,
+                event.param_amount_in,
                 event.trade_direction == TradeDirection::Buy
             ));
-            Some(Box::new(MeteoraDBCSwapEvent {
+            Some(Box::new(MeteoraDAMMv2SwapEvent {
                 metadata,
                 ..event
             }))
@@ -75,7 +73,7 @@ impl MeteoraDBCEventParser {
         accounts: &[Pubkey],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        if data.len() < 16 || accounts.len() < 15 {
+        if data.len() < 16 || accounts.len() < 14 {
             return None;
         }
         let amount_in = read_u64_le(data, 0)?;
@@ -83,14 +81,14 @@ impl MeteoraDBCEventParser {
 
         let mut metadata = metadata;
 
-        let payer = accounts[9];
-        let base_mint = accounts[7];
-        let quote_mint = accounts[8];
+        let payer = accounts[8];
+        let mint_a = accounts[6];
+        let ming_b = accounts[7];
 
-        let input_token_account = accounts[3];
-        let output_token_account = accounts[4];
+        let input_token_account = accounts[2];
+        let output_token_account = accounts[3];
 
-        let calculated_base_token_account = get_associated_token_address(&payer,&base_mint);
+        let calculated_base_token_account = get_associated_token_address(&payer, &mint_a);
         // let calculated_quote_token_account = get_associated_token_address(&payer,&quote_mint);
 
         let tradedir = if calculated_base_token_account == output_token_account {
@@ -101,27 +99,26 @@ impl MeteoraDBCEventParser {
 
         metadata.set_id(format!(
             "{}-{}-{}-{}",
-            metadata.signature, accounts[2], accounts[1], tradedir == TradeDirection::Buy
+            metadata.signature, accounts[1], amount_in, tradedir == TradeDirection::Buy
         ));
 
 
-        Some(Box::new(MeteoraDBCSwapEvent {
+        Some(Box::new(MeteoraDAMMv2SwapEvent {
             metadata,
-            pool: accounts[0].clone(),
-            config: accounts[1].clone(),
+            pool: accounts[1].clone(),
             trade_direction: tradedir,
             param_amount_in: amount_in,
             param_minimum_amount_out: minimum_amount_out,
             amount_in,
             payer,
-            base_mint,
-            quote_mint,
+            token_a_mint: mint_a.clone(),
+            token_b_mint: ming_b.clone(),
             input_token_account,
             output_token_account,
-            base_vault: accounts[5].clone(),
-            quote_vault: accounts[6].clone(),
-            token_base_program: accounts[10].clone(),
-            token_quote_program: accounts[11].clone(),
+            token_a_vault: accounts[4].clone(),
+            token_b_vault: accounts[5].clone(),
+            token_a_program: accounts[9].clone(),
+            token_b_program: accounts[10].clone(),
             remaining_accounts: vec![],
             ..Default::default()
         }))
@@ -129,7 +126,7 @@ impl MeteoraDBCEventParser {
 }
 
 #[async_trait::async_trait]
-impl EventParser for MeteoraDBCEventParser {
+impl EventParser for MeteoraDAMMv2EventParser {
     fn parse_events_from_inner_instruction(
         &self,
         inner_instruction: &UiCompiledInstruction,
