@@ -88,6 +88,7 @@ pub enum ProtocolType {
     RaydiumCpmm,
     RaydiumClmm,
     PhotonProtocol,
+    MeteoraDBC,
     SDKSystem,
 }
 
@@ -131,6 +132,9 @@ pub enum EventType {
     PhotonPumpFunSell,
     PhotonPumpSwapTrade,
 
+    // Meteora DBC events
+    MeteoraDBCSwap,
+
     // Common events
     SDKSystem,
     Unknown,
@@ -162,6 +166,7 @@ impl EventType {
             EventType::PhotonPumpFunBuy => "PhotonPumpFunBuy".to_string(),
             EventType::PhotonPumpFunSell => "PhotonPumpFunSell".to_string(),
             EventType::PhotonPumpSwapTrade => "PhotonPumpSwapTrade".to_string(),
+            EventType::MeteoraDBCSwap => "MeteoraDBCSwap".to_string(),
             EventType::SDKSystem => "SDKSystem".to_string(),
             EventType::Unknown => "Unknown".to_string(),
         }
@@ -366,6 +371,7 @@ pub fn parse_transfer_datas_from_next_instructions(
         | EventType::RaydiumCpmmSwapBaseOutput
         | EventType::RaydiumClmmSwap
         | EventType::RaydiumClmmSwapV2 => 2,
+        EventType::MeteoraDBCSwap => 3,
         _ => 0,
     };
     if take == 0 {

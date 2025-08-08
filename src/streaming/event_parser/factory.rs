@@ -8,6 +8,8 @@ use crate::streaming::event_parser::protocols::{
     raydium_clmm::parser::RAYDIUM_CLMM_PROGRAM_ID, BonkEventParser, RaydiumCpmmEventParser, photon::parser::PHOTON_PROGRAM_ID,
     RaydiumClmmEventParser,
 };
+use crate::streaming::event_parser::protocols::meteora_dbc::MeteoraDBCEventParser;
+use crate::streaming::event_parser::protocols::meteora_dbc::parser::METEORA_DBC_PROGRAM_ID;
 use super::{
     core::traits::EventParser,
     protocols::{pumpfun::PumpFunEventParser, pumpswap::PumpSwapEventParser, photon::PhotonEventParser},
@@ -21,7 +23,8 @@ pub enum Protocol {
     Bonk,
     RaydiumCpmm,
     RaydiumClmm,
-    Phonton
+    Phonton,
+    MeteoraDBC, // 未来可能支持的协议
 }
 
 impl Protocol {
@@ -32,7 +35,8 @@ impl Protocol {
             Protocol::Bonk => vec![BONK_PROGRAM_ID],
             Protocol::RaydiumCpmm => vec![RAYDIUM_CPMM_PROGRAM_ID],
             Protocol::RaydiumClmm => vec![RAYDIUM_CLMM_PROGRAM_ID],
-            Protocol::Phonton => vec![PHOTON_PROGRAM_ID], // Photon protocol, no specific program ID
+            Protocol::Phonton => vec![PHOTON_PROGRAM_ID],
+            Protocol::MeteoraDBC => vec![METEORA_DBC_PROGRAM_ID],
         }
     }
 }
@@ -46,6 +50,7 @@ impl std::fmt::Display for Protocol {
             Protocol::RaydiumCpmm => write!(f, "RaydiumCpmm"),
             Protocol::RaydiumClmm => write!(f, "RaydiumClmm"),
             Protocol::Phonton => write!(f, "Photon"),
+            Protocol::MeteoraDBC => write!(f, "MeteoraDBC"),
         }
     }
 }
@@ -61,6 +66,7 @@ impl std::str::FromStr for Protocol {
             "raydiumcpmm" => Ok(Protocol::RaydiumCpmm),
             "raydiumclmm" => Ok(Protocol::RaydiumClmm),
             "photon" => Ok(Protocol::Phonton),
+            "meteoradbc" => Ok(Protocol::MeteoraDBC),
             _ => Err(anyhow!("Unsupported protocol: {}", s)),
         }
     }
@@ -68,13 +74,14 @@ impl std::str::FromStr for Protocol {
 
 static EVENT_PARSERS: LazyLock<HashMap<Protocol, Arc<dyn EventParser>>> = LazyLock::new(|| {
     // 预分配容量，避免动态扩容
-    let mut parsers: HashMap<Protocol, Arc<dyn EventParser>> = HashMap::with_capacity(6);
+    let mut parsers: HashMap<Protocol, Arc<dyn EventParser>> = HashMap::with_capacity(7);
     parsers.insert(Protocol::PumpSwap, Arc::new(PumpSwapEventParser::new()));
     parsers.insert(Protocol::PumpFun, Arc::new(PumpFunEventParser::new()));
     parsers.insert(Protocol::Bonk, Arc::new(BonkEventParser::new()));
     parsers.insert(Protocol::RaydiumCpmm, Arc::new(RaydiumCpmmEventParser::new()));
     parsers.insert(Protocol::RaydiumClmm, Arc::new(RaydiumClmmEventParser::new()));
     parsers.insert(Protocol::Phonton, Arc::new(PhotonEventParser::new()));
+    parsers.insert(Protocol::MeteoraDBC, Arc::new(MeteoraDBCEventParser::new()));
     parsers
 });
 
@@ -101,7 +108,13 @@ impl EventParserFactory {
 
     /// 获取所有支持的协议
     pub fn supported_protocols() -> Vec<Protocol> {
-        vec![Protocol::PumpSwap]
+        vec![Protocol::PumpSwap,
+            Protocol::PumpFun,
+             Protocol::Bonk,
+             Protocol::RaydiumCpmm,
+             Protocol::RaydiumClmm,
+             Protocol::Phonton,
+             Protocol::MeteoraDBC]
     }
 
     /// 检查协议是否支持

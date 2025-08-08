@@ -150,14 +150,6 @@ impl_unified_event!(
 
 /// Event discriminator constants
 pub mod discriminators {
-    pub const PUMP_FUN_TRADE_EVENT: &str = "0xe445a52e51cb9a1dbddb7fd34ee661ee";
-
-    // 事件鉴别器
-    pub const PUMPFUN_BUY_EVENT: &str = "0xe445a52e51cb9a1d67f4521f2cf57777";
-    pub const PUMPFUN_SELL_EVENT: &str = "0xe445a52e51cb9a1d3e2f370aa503dc2a";
-
-    pub const PUMPSWAP_BUY_EVENT: &str = "0xe445a52e51cb9a1d67f4521f2cf57777";
-    pub const PUMPSWAP_SELL_EVENT: &str = "0xe445a52e51cb9a1d3e2f370aa503dc2a";
 
     pub const PUMPFUN_BUY_IX: &[u8] = &[102, 6, 61, 18, 1, 218, 235, 234];
 

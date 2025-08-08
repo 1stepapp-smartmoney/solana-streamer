@@ -32,14 +32,14 @@ impl PhotonEventParser {
         // 配置所有事件类型
         let configs = vec![
             GenericEventParseConfig {
-                inner_instruction_discriminator: discriminators::PUMP_FUN_TRADE_EVENT,
+                inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::PHOTON_PUMPFUN_BUY_IX,
                 event_type: EventType::PhotonPumpFunBuy,
                 inner_instruction_parser: Self::parse_pumpfun_trade_inner_instruction,
                 instruction_parser: Self::parse_photon_pumpfun_buy_instruction,
             },
             GenericEventParseConfig {
-                inner_instruction_discriminator: discriminators::PUMP_FUN_TRADE_EVENT,
+                inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::PHOTON_PUMPFUN_SELL_IX,
                 event_type: EventType::PhotonPumpFunSell,
                 inner_instruction_parser: Self::parse_pumpfun_trade_inner_instruction,
@@ -62,22 +62,7 @@ impl PhotonEventParser {
         data: &[u8],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        if let Ok(event) = borsh::from_slice::<PumpFunTradeEvent>(data) {
-            let mut metadata = metadata;
-            metadata.set_id(format!(
-                "{}-{}-{}-{}",
-                metadata.signature,
-                event.mint,
-                event.user,
-                event.is_buy
-            ));
-            Some(Box::new(PumpFunTradeEvent {
-                metadata,
-                ..event
-            }))
-        } else {
-            None
-        }
+        None
     }
 
     // 解析pumpfun买入指令事件
@@ -159,19 +144,7 @@ impl PhotonEventParser {
         data: &[u8],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        if let Ok(event) = borsh::from_slice::<PumpSwapBuyEvent>(data) {
-            let mut metadata = metadata;
-            metadata.set_id(format!(
-                "{}-{}-{}-{}",
-                metadata.signature, event.user, event.pool, event.base_amount_out
-            ));
-            Some(Box::new(PumpSwapBuyEvent {
-                metadata,
-                ..event
-            }))
-        } else {
-            None
-        }
+        None
     }
 
     /// 解析卖出日志事件

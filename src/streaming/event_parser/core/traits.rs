@@ -193,8 +193,8 @@ pub trait EventParser: Send + Sync {
                     if self.should_handle(program_id) {
                         let max_idx = instruction.accounts.iter().max().unwrap_or(&0);
                         // 补齐accounts(使用Pubkey::default())
-                        if *max_idx as usize > accounts.len() {
-                            for _i in accounts.len()..*max_idx as usize {
+                        if *max_idx as usize >= accounts.len() {
+                            for _i in accounts.len()-1..*max_idx as usize {
                                 accounts.push(Pubkey::default());
                             }
                         }
@@ -752,22 +752,22 @@ impl EventParser for GenericEventParser {
             let data = &instruction.data[disc.len()..];
             if discriminator == disc {
                 // 验证账户索引
-                let mut full_accountKeys: Vec<Pubkey> = Vec::new();
-                full_accountKeys.extend(accounts.to_vec());
-                if !validate_account_indices(&instruction.accounts, accounts.len()) {
-                    let max_idx = instruction.accounts.iter().max().unwrap_or(&0);
-                    if *max_idx as usize >= full_accountKeys.len() {
-                        for _i in full_accountKeys.len()-1..*max_idx as usize {
-                            full_accountKeys.push(Pubkey::default());
-                        }
-                    }
-                    // continue;
-                }
+                // let mut full_accountKeys: Vec<Pubkey> = Vec::new();
+                // full_accountKeys.extend(accounts.to_vec());
+                // if !validate_account_indices(&instruction.accounts, accounts.len()) {
+                //     let max_idx = instruction.accounts.iter().max().unwrap_or(&0);
+                //     if *max_idx as usize >= full_accountKeys.len() {
+                //         for _i in full_accountKeys.len()-1..*max_idx as usize {
+                //             full_accountKeys.push(Pubkey::default());
+                //         }
+                //     }
+                //     // continue;
+                // }
 
                 let account_pubkeys: Vec<Pubkey> = instruction
                     .accounts
                     .iter()
-                    .map(|&idx| full_accountKeys[idx as usize])
+                    .map(|&idx| accounts[idx as usize])
                     .collect();
                 for config in configs {
                     if let Some(event) = self.parse_instruction_event(
