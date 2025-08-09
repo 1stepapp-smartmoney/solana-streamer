@@ -1,13 +1,14 @@
 use prost_types::Timestamp;
 use solana_sdk::{instruction::CompiledInstruction, pubkey::Pubkey};
 use solana_transaction_status::UiCompiledInstruction;
-
+use spl_associated_token_account::get_associated_token_address;
 use crate::streaming::event_parser::{
     common::{EventMetadata, EventType, ProtocolType},
     core::traits::{EventParser, GenericEventParseConfig, GenericEventParser, UnifiedEvent},
     protocols::photon::{discriminators, PhotonPumpFunTradeEvent},
 };
 use crate::streaming::event_parser::common::read_u64_le;
+use crate::streaming::event_parser::protocols::meteora_dbc::types::TradeDirection;
 use crate::streaming::event_parser::protocols::photon::PhotonPumpSwapTradeEvent;
 use crate::streaming::event_parser::protocols::pumpfun::PumpFunTradeEvent;
 use crate::streaming::event_parser::protocols::pumpswap::{PumpSwapBuyEvent, PumpSwapSellEvent};
@@ -49,7 +50,7 @@ impl PhotonEventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::PHOTON_PUMPSWAP_TRADE_IX,
                 event_type: EventType::PhotonPumpSwapTrade,
-                inner_instruction_parser: Self::parse_pumpswap_buy_inner_instruction,
+                inner_instruction_parser: Self::parse_pumpswap_inner_instruction,
                 instruction_parser: Self::parse_photon_pumpswap_trade_instruction,
             },
         ];
@@ -75,7 +76,6 @@ impl PhotonEventParser {
         if data.len() < 32 {
             return None;
         }
-
 
         let amount = u64::from_le_bytes(data[16..24].try_into().unwrap());
         let max_sol_cost = u64::from_le_bytes(data[8..16].try_into().unwrap());
@@ -140,32 +140,13 @@ impl PhotonEventParser {
         }))
     }
 
-    fn parse_pumpswap_buy_inner_instruction(
+    fn parse_pumpswap_inner_instruction(
         data: &[u8],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
         None
     }
 
-    /// 解析卖出日志事件
-    fn parse_pumpswap_sell_inner_instruction(
-        data: &[u8],
-        metadata: EventMetadata,
-    ) -> Option<Box<dyn UnifiedEvent>> {
-        if let Ok(event) = borsh::from_slice::<PumpSwapSellEvent>(data) {
-            let mut metadata = metadata;
-            metadata.set_id(format!(
-                "{}-{}-{}-{}",
-                metadata.signature, event.user, event.pool, event.base_amount_in
-            ));
-            Some(Box::new(PumpSwapSellEvent {
-                metadata,
-                ..event
-            }))
-        } else {
-            None
-        }
-    }
 
     fn parse_photon_pumpswap_trade_instruction(
         data: &[u8],
@@ -176,8 +157,20 @@ impl PhotonEventParser {
             return None;
         }
 
+        let user = accounts[1].clone();
+        let base_mint = accounts[3].clone();
+        let quote_mint = accounts[4].clone();
 
-        if (accounts.len() > 19) {
+        let input_token_account = accounts[5];
+        let output_token_account = accounts[6];
+
+        let calculated_user_base_token_account = get_associated_token_address(&user,&base_mint);
+        // let calculated_quote_token_account = get_associated_token_address(&payer,&quote_mint);
+
+        let is_buy = calculated_user_base_token_account == output_token_account;
+
+
+        if (is_buy) {
             let base_amount_out = read_u64_le(data, 8)?;
             let max_quote_amount_in = read_u64_le(data, 0)?;
             let mut metadata = metadata;
@@ -192,13 +185,13 @@ impl PhotonEventParser {
                 metadata,
                 base_amount_out,
                 max_quote_amount_in,
-                is_buy: true,
+                is_buy,
                 pool: accounts[0],
-                user: accounts[1],
-                base_mint: accounts[3],
-                quote_mint: accounts[4],
-                user_base_token_account: accounts[6],
-                user_quote_token_account: accounts[5],
+                user,
+                base_mint,
+                quote_mint,
+                user_base_token_account: output_token_account,
+                user_quote_token_account: input_token_account,
                 pool_base_token_account: accounts[7],
                 pool_quote_token_account: accounts[8],
                 protocol_fee_recipient: accounts[9],
@@ -223,13 +216,13 @@ impl PhotonEventParser {
                 metadata,
                 base_amount_in,
                 min_quote_amount_out,
-                is_buy: false,
+                is_buy,
                 pool: accounts[0],
-                user: accounts[1],
-                base_mint: accounts[3],
-                quote_mint: accounts[4],
-                user_base_token_account: accounts[5],
-                user_quote_token_account: accounts[6],
+                user,
+                base_mint,
+                quote_mint,
+                user_base_token_account: input_token_account,
+                user_quote_token_account: output_token_account,
                 pool_base_token_account: accounts[7],
                 pool_quote_token_account: accounts[8],
                 protocol_fee_recipient: accounts[9],
