@@ -2,10 +2,17 @@ use anyhow::{anyhow, Result};
 use solana_sdk::pubkey::Pubkey;
 use std::{collections::HashMap, sync::{Arc, LazyLock}};
 
-use crate::streaming::event_parser::protocols::{bonk::parser::BONK_PROGRAM_ID, pumpfun::parser::PUMPFUN_PROGRAM_ID, pumpswap::parser::PUMPSWAP_PROGRAM_ID, raydium_cpmm::parser::RAYDIUM_CPMM_PROGRAM_ID, raydium_clmm::parser::RAYDIUM_CLMM_PROGRAM_ID, BonkEventParser, RaydiumCpmmEventParser, photon::parser::PHOTON_PROGRAM_ID, RaydiumClmmEventParser, MeteoraDAMMv2EventParser};
+use crate::streaming::event_parser::protocols::{
+    bonk::parser::BONK_PROGRAM_ID, pumpfun::parser::PUMPFUN_PROGRAM_ID, pumpswap::parser::PUMPSWAP_PROGRAM_ID,
+    raydium_cpmm::parser::RAYDIUM_CPMM_PROGRAM_ID, raydium_clmm::parser::RAYDIUM_CLMM_PROGRAM_ID, BonkEventParser,
+    RaydiumCpmmEventParser, photon::parser::PHOTON_PROGRAM_ID, RaydiumClmmEventParser, MeteoraDAMMv2EventParser,
+    AxiomEventParser, Axiom2EventParser
+};
 use crate::streaming::event_parser::protocols::meteora_dammv2::parser::METEORA_DAMM_V2_PROGRAM_ID;
 use crate::streaming::event_parser::protocols::meteora_dbc::MeteoraDBCEventParser;
 use crate::streaming::event_parser::protocols::meteora_dbc::parser::METEORA_DBC_PROGRAM_ID;
+use crate::streaming::event_parser::protocols::axiom::parser::AXIOM_1_PROGRAM_ID;
+use crate::streaming::event_parser::protocols::axiom2::parser::AXIOM_2_PROGRAM_ID;
 use super::{
     core::traits::EventParser,
     protocols::{pumpfun::PumpFunEventParser, pumpswap::PumpSwapEventParser, photon::PhotonEventParser},
@@ -21,7 +28,9 @@ pub enum Protocol {
     RaydiumClmm,
     Phonton,
     MeteoraDBC,
-    MeteoraDAMMv2
+    MeteoraDAMMv2,
+    AxiomProgram1,
+    AxiomProgram2,
 }
 
 impl Protocol {
@@ -35,6 +44,8 @@ impl Protocol {
             Protocol::Phonton => vec![PHOTON_PROGRAM_ID],
             Protocol::MeteoraDBC => vec![METEORA_DBC_PROGRAM_ID],
             Protocol::MeteoraDAMMv2 => vec![METEORA_DAMM_V2_PROGRAM_ID],
+            Protocol::AxiomProgram1 => vec![AXIOM_1_PROGRAM_ID],
+            Protocol::AxiomProgram2 => vec![AXIOM_2_PROGRAM_ID],
         }
     }
 }
@@ -50,6 +61,8 @@ impl std::fmt::Display for Protocol {
             Protocol::Phonton => write!(f, "Photon"),
             Protocol::MeteoraDBC => write!(f, "MeteoraDBC"),
             Protocol::MeteoraDAMMv2 => write!(f, "MeteoraDAMMv2"),
+            Protocol::AxiomProgram1 => write!(f, "AxiomTradingProgram1"),
+            Protocol::AxiomProgram2 => write!(f, "AxiomTradingProgram2"),
         }
     }
 }
@@ -67,6 +80,8 @@ impl std::str::FromStr for Protocol {
             "photon" => Ok(Protocol::Phonton),
             "meteoradbc" => Ok(Protocol::MeteoraDBC),
             "meteoradammv2" => Ok(Protocol::MeteoraDAMMv2),
+            "axiomprogram1" => Ok(Protocol::AxiomProgram1),
+            "axiomprogram2" => Ok(Protocol::AxiomProgram2),
             _ => Err(anyhow!("Unsupported protocol: {}", s)),
         }
     }
@@ -74,7 +89,7 @@ impl std::str::FromStr for Protocol {
 
 static EVENT_PARSERS: LazyLock<HashMap<Protocol, Arc<dyn EventParser>>> = LazyLock::new(|| {
     // 预分配容量，避免动态扩容
-    let mut parsers: HashMap<Protocol, Arc<dyn EventParser>> = HashMap::with_capacity(8);
+    let mut parsers: HashMap<Protocol, Arc<dyn EventParser>> = HashMap::with_capacity(10);
     parsers.insert(Protocol::PumpSwap, Arc::new(PumpSwapEventParser::new()));
     parsers.insert(Protocol::PumpFun, Arc::new(PumpFunEventParser::new()));
     parsers.insert(Protocol::Bonk, Arc::new(BonkEventParser::new()));
@@ -83,6 +98,8 @@ static EVENT_PARSERS: LazyLock<HashMap<Protocol, Arc<dyn EventParser>>> = LazyLo
     parsers.insert(Protocol::Phonton, Arc::new(PhotonEventParser::new()));
     parsers.insert(Protocol::MeteoraDBC, Arc::new(MeteoraDBCEventParser::new()));
     parsers.insert(Protocol::MeteoraDAMMv2, Arc::new(MeteoraDAMMv2EventParser::new()));
+    parsers.insert(Protocol::AxiomProgram1, Arc::new(AxiomEventParser::new()));
+    parsers.insert(Protocol::AxiomProgram2, Arc::new(Axiom2EventParser::new()));
     parsers
 });
 
@@ -110,13 +127,15 @@ impl EventParserFactory {
     /// 获取所有支持的协议
     pub fn supported_protocols() -> Vec<Protocol> {
         vec![Protocol::PumpSwap,
-            Protocol::PumpFun,
+             Protocol::PumpFun,
              Protocol::Bonk,
              Protocol::RaydiumCpmm,
              Protocol::RaydiumClmm,
              Protocol::Phonton,
              Protocol::MeteoraDBC,
-             Protocol::MeteoraDAMMv2
+             Protocol::MeteoraDAMMv2,
+             Protocol::AxiomProgram1,
+             Protocol::AxiomProgram2
         ]
     }
 

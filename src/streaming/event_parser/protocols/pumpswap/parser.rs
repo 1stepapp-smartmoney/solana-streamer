@@ -207,6 +207,8 @@ impl PumpSwapEventParser {
             protocol_fee_recipient_token_account: accounts[10],
             coin_creator_vault_ata: accounts.get(17).copied().unwrap_or_default(),
             coin_creator_vault_authority: accounts.get(18).copied().unwrap_or_default(),
+            global_volume_accumulator: accounts.get(19).copied().unwrap_or_default(),
+            user_volume_accumulator: accounts.get(20).copied().unwrap_or_default(),
             ..Default::default()
         }))
     }

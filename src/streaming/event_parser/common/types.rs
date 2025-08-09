@@ -90,6 +90,8 @@ pub enum ProtocolType {
     PhotonProtocol,
     MeteoraDBC,
     MeteoraDAMMv2,
+    AxiomTrading1,
+    AxiomTrading2,
     SDKSystem,
 }
 
@@ -139,6 +141,10 @@ pub enum EventType {
     // Meteora DAMM v2 events
     MeteoraDAMMv2Swap,
 
+    // Axiom Trading events
+    AxiomPumpFunBuy,
+    AxiomPumpSwapBuy,
+
     // Common events
     SDKSystem,
     Unknown,
@@ -172,6 +178,8 @@ impl EventType {
             EventType::PhotonPumpSwapTrade => "PhotonPumpSwapTrade".to_string(),
             EventType::MeteoraDBCSwap => "MeteoraDBCSwap".to_string(),
             EventType::MeteoraDAMMv2Swap => "MeteoraDAMMv2Swap".to_string(),
+            EventType::AxiomPumpFunBuy => "AxiomPumpFunBuy".to_string(),
+            EventType::AxiomPumpSwapBuy => "AxiomPumpSwapBuy".to_string(),
             EventType::SDKSystem => "SDKSystem".to_string(),
             EventType::Unknown => "Unknown".to_string(),
         }

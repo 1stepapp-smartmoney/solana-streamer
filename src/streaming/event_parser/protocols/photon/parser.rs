@@ -73,7 +73,7 @@ impl PhotonEventParser {
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
 
-        if data.len() < 32 {
+        if data.len() < 32 || accounts.len() < 17 {
             return None;
         }
 
@@ -111,7 +111,7 @@ impl PhotonEventParser {
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
 
-        if data.len() < 32 {
+        if data.len() < 32 || accounts.len() < 15 {
             return None;
         }
         let amount = u64::from_le_bytes(data[8..16].try_into().unwrap());

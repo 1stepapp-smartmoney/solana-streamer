@@ -151,15 +151,8 @@ impl_unified_event!(
 /// Event discriminator constants
 pub mod discriminators {
 
-    pub const PUMPFUN_BUY_IX: &[u8] = &[102, 6, 61, 18, 1, 218, 235, 234];
-
     pub const PHOTON_PUMPFUN_BUY_IX: &[u8] = &[82, 225, 119, 231, 78, 29, 45, 70];
     pub const PHOTON_PUMPFUN_SELL_IX: &[u8] = &[93, 88, 60, 34, 91, 18, 86, 197];
-
-    // pub const PUMPFUN_SELL_IX: &[u8] = &[51, 230, 133, 164, 1, 127, 131, 173];
-    //
-    // pub const PUMPSWAP_BUY_IX: &[u8] = &[102, 6, 61, 18, 1, 218, 235, 234];
-    // pub const PUMPSWAP_SELL_IX: &[u8] = &[51, 230, 133, 164, 1, 127, 131, 173];
 
     pub const PHOTON_PUMPSWAP_TRADE_IX: &[u8] = &[44, 119, 175, 218, 199, 77, 196, 235];
 }

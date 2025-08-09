@@ -45,6 +45,10 @@ pub struct PumpSwapBuyEvent {
     pub coin_creator_vault_ata: Pubkey,
     #[borsh(skip)]
     pub coin_creator_vault_authority: Pubkey,
+    #[borsh(skip)]
+    pub global_volume_accumulator: Pubkey,
+    #[borsh(skip)]
+    pub user_volume_accumulator: Pubkey,
 }
 
 // 使用宏生成UnifiedEvent实现，指定需要合并的字段
