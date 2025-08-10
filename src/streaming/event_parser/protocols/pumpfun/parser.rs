@@ -113,10 +113,16 @@ impl PumpFunEventParser {
         let mut offset = 0;
         let name_len = u32::from_le_bytes(data[offset..offset + 4].try_into().unwrap()) as usize;
         offset += 4;
+        if offset + name_len > data.len() {
+            return None; // 防止越界
+        }
         let name = String::from_utf8_lossy(&data[offset..offset + name_len]);
         offset += name_len;
         let symbol_len = u32::from_le_bytes(data[offset..offset + 4].try_into().unwrap()) as usize;
         offset += 4;
+        if offset + name_len > data.len() {
+            return None; // 防止越界
+        }
         let symbol = String::from_utf8_lossy(&data[offset..offset + symbol_len]);
         offset += symbol_len;
         let uri_len = u32::from_le_bytes(data[offset..offset + 4].try_into().unwrap()) as usize;
