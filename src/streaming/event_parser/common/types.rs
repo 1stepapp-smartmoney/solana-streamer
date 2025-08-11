@@ -468,6 +468,9 @@ pub fn parse_transfer_datas_from_next_instructions(
                         continue;
                     }
                     let (source, destination) = (account_pubkeys[0], account_pubkeys[1]);
+                    if (data.len() < 13) {
+                        continue;
+                    }
                     let amount = u64::from_le_bytes(data[4..12].try_into().unwrap());
                     let token_program = accounts[compiled.program_id_index as usize];
                     transfer_datas.push(TransferData {
