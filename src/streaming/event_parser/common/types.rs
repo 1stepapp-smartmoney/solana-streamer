@@ -107,7 +107,6 @@ pub enum ProtocolType {
     MeteoraDAMMv2,
     AxiomTrading1,
     AxiomTrading2,
-    SDKSystem,
     RaydiumAmmV4,
     Common,
 }

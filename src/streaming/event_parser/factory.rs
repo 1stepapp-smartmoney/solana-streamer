@@ -89,7 +89,7 @@ impl std::str::FromStr for Protocol {
 
 static EVENT_PARSERS: LazyLock<HashMap<Protocol, Arc<dyn EventParser>>> = LazyLock::new(|| {
     // 预分配容量，避免动态扩容
-    let mut parsers: HashMap<Protocol, Arc<dyn EventParser>> = HashMap::with_capacity(10);
+    let mut parsers: HashMap<Protocol, Arc<dyn EventParser>> = HashMap::with_capacity(11);
     parsers.insert(Protocol::PumpSwap, Arc::new(PumpSwapEventParser::new()));
     parsers.insert(Protocol::PumpFun, Arc::new(PumpFunEventParser::new()));
     parsers.insert(Protocol::Bonk, Arc::new(BonkEventParser::new()));
@@ -136,7 +136,8 @@ impl EventParserFactory {
              Protocol::MeteoraDBC,
              Protocol::MeteoraDAMMv2,
              Protocol::AxiomProgram1,
-             Protocol::AxiomProgram2
+             Protocol::AxiomProgram2,
+             Protocol::RaydiumAmmV4
         ]
     }
 
