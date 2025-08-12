@@ -64,7 +64,7 @@ pub struct PumpFunTradeEvent {
     pub total_unclaimed_tokens: u64,
     pub total_claimed_tokens: u64,
     pub current_sol_volume: u64,
-    pub last_update_timestamp: u64,
+    pub last_update_timestamp: i64,
     #[borsh(skip)]
     pub bonding_curve: Pubkey,
     #[borsh(skip)]
@@ -106,12 +106,7 @@ impl_unified_event!(
     fee,
     creator,
     creator_fee_basis_points,
-    creator_fee,
-    track_volume,
-    total_unclaimed_tokens,
-    total_claimed_tokens,
-    current_sol_volume,
-    last_update_timestamp
+    creator_fee
 );
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
