@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use prost_types::Timestamp;
 use solana_sdk::{instruction::CompiledInstruction, pubkey::Pubkey};
 use solana_transaction_status::UiCompiledInstruction;
@@ -12,6 +13,7 @@ use crate::streaming::event_parser::protocols::meteora_dbc::types::TradeDirectio
 use crate::streaming::event_parser::protocols::photon::PhotonPumpSwapTradeEvent;
 use crate::streaming::event_parser::protocols::pumpfun::PumpFunTradeEvent;
 use crate::streaming::event_parser::protocols::pumpswap::{PumpSwapBuyEvent, PumpSwapSellEvent};
+use crate::streaming::event_parser::protocols::raydium_amm_v4::parser::RAYDIUM_AMM_V4_PROGRAM_ID;
 
 /// PumpFun程序ID
 pub const PHOTON_PROGRAM_ID: Pubkey =
@@ -33,6 +35,8 @@ impl PhotonEventParser {
         // 配置所有事件类型
         let configs = vec![
             GenericEventParseConfig {
+                program_id: PHOTON_PROGRAM_ID,
+                protocol_type: ProtocolType::PhotonProtocol,
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::PHOTON_PUMPFUN_BUY_IX,
                 event_type: EventType::PhotonPumpFunBuy,
@@ -40,6 +44,8 @@ impl PhotonEventParser {
                 instruction_parser: Self::parse_photon_pumpfun_buy_instruction,
             },
             GenericEventParseConfig {
+                program_id: PHOTON_PROGRAM_ID,
+                protocol_type: ProtocolType::PhotonProtocol,
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::PHOTON_PUMPFUN_SELL_IX,
                 event_type: EventType::PhotonPumpFunSell,
@@ -47,6 +53,8 @@ impl PhotonEventParser {
                 instruction_parser: Self::parse_photon_pumpfun_sell_instruction,
             },
             GenericEventParseConfig {
+                program_id: PHOTON_PROGRAM_ID,
+                protocol_type: ProtocolType::PhotonProtocol,
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::PHOTON_PUMPSWAP_TRADE_IX,
                 event_type: EventType::PhotonPumpSwapTrade,
@@ -55,7 +63,7 @@ impl PhotonEventParser {
             },
         ];
 
-        let inner = GenericEventParser::new(PHOTON_PROGRAM_ID, ProtocolType::PhotonProtocol, configs);
+        let inner = GenericEventParser::new(vec![PHOTON_PROGRAM_ID], configs);
 
         Self { inner }
     }
@@ -240,6 +248,14 @@ impl PhotonEventParser {
 
 #[async_trait::async_trait]
 impl EventParser for PhotonEventParser {
+
+    fn inner_instruction_configs(&self) -> HashMap<&'static str, Vec<GenericEventParseConfig>> {
+        self.inner.inner_instruction_configs()
+    }
+    fn instruction_configs(&self) -> HashMap<Vec<u8>, Vec<GenericEventParseConfig>> {
+        self.inner.instruction_configs()
+    }
+    
     fn parse_events_from_inner_instruction(
         &self,
         inner_instruction: &UiCompiledInstruction,

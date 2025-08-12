@@ -2,17 +2,13 @@ use anyhow::{anyhow, Result};
 use solana_sdk::pubkey::Pubkey;
 use std::{collections::HashMap, sync::{Arc, LazyLock}};
 
-use crate::streaming::event_parser::protocols::{
-    bonk::parser::BONK_PROGRAM_ID, pumpfun::parser::PUMPFUN_PROGRAM_ID, pumpswap::parser::PUMPSWAP_PROGRAM_ID,
-    raydium_cpmm::parser::RAYDIUM_CPMM_PROGRAM_ID, raydium_clmm::parser::RAYDIUM_CLMM_PROGRAM_ID, BonkEventParser,
-    RaydiumCpmmEventParser, photon::parser::PHOTON_PROGRAM_ID, RaydiumClmmEventParser, MeteoraDAMMv2EventParser,
-    AxiomEventParser, Axiom2EventParser
-};
+use crate::streaming::event_parser::protocols::{bonk::parser::BONK_PROGRAM_ID, pumpfun::parser::PUMPFUN_PROGRAM_ID, pumpswap::parser::PUMPSWAP_PROGRAM_ID, raydium_cpmm::parser::RAYDIUM_CPMM_PROGRAM_ID, raydium_clmm::parser::RAYDIUM_CLMM_PROGRAM_ID, BonkEventParser, RaydiumCpmmEventParser, photon::parser::PHOTON_PROGRAM_ID, RaydiumClmmEventParser, MeteoraDAMMv2EventParser, AxiomEventParser, Axiom2EventParser, RaydiumAmmV4EventParser};
 use crate::streaming::event_parser::protocols::meteora_dammv2::parser::METEORA_DAMM_V2_PROGRAM_ID;
 use crate::streaming::event_parser::protocols::meteora_dbc::MeteoraDBCEventParser;
 use crate::streaming::event_parser::protocols::meteora_dbc::parser::METEORA_DBC_PROGRAM_ID;
 use crate::streaming::event_parser::protocols::axiom::parser::AXIOM_1_PROGRAM_ID;
 use crate::streaming::event_parser::protocols::axiom2::parser::AXIOM_2_PROGRAM_ID;
+use crate::streaming::event_parser::protocols::raydium_amm_v4::parser::RAYDIUM_AMM_V4_PROGRAM_ID;
 use super::{
     core::traits::EventParser,
     protocols::{pumpfun::PumpFunEventParser, pumpswap::PumpSwapEventParser, photon::PhotonEventParser},

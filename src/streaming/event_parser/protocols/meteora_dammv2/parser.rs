@@ -1,4 +1,5 @@
 use std::cmp::min;
+use std::collections::HashMap;
 use prost_types::Timestamp;
 use solana_sdk::{instruction::CompiledInstruction, pubkey::Pubkey};
 use solana_transaction_status::UiCompiledInstruction;
@@ -30,6 +31,8 @@ impl MeteoraDAMMv2EventParser {
         // 配置所有事件类型
         let configs = vec![
             GenericEventParseConfig {
+                program_id: METEORA_DAMM_V2_PROGRAM_ID,
+                protocol_type: ProtocolType::MeteoraDAMMv2,
                 inner_instruction_discriminator: discriminators::TRADE_EVENT,
                 instruction_discriminator: discriminators::SWAP,
                 event_type: EventType::MeteoraDAMMv2Swap,
@@ -39,7 +42,7 @@ impl MeteoraDAMMv2EventParser {
         ];
 
         let inner =
-            GenericEventParser::new(METEORA_DAMM_V2_PROGRAM_ID, ProtocolType::MeteoraDAMMv2, configs);
+            GenericEventParser::new(vec![METEORA_DAMM_V2_PROGRAM_ID], configs);
 
         Self { inner }
     }
@@ -127,6 +130,14 @@ impl MeteoraDAMMv2EventParser {
 
 #[async_trait::async_trait]
 impl EventParser for MeteoraDAMMv2EventParser {
+
+    fn inner_instruction_configs(&self) -> HashMap<&'static str, Vec<GenericEventParseConfig>> {
+        self.inner.inner_instruction_configs()
+    }
+    fn instruction_configs(&self) -> HashMap<Vec<u8>, Vec<GenericEventParseConfig>> {
+        self.inner.instruction_configs()
+    }
+
     fn parse_events_from_inner_instruction(
         &self,
         inner_instruction: &UiCompiledInstruction,

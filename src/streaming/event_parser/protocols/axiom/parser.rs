@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use prost_types::Timestamp;
 use solana_sdk::{instruction::CompiledInstruction, pubkey::Pubkey};
 use solana_transaction_status::UiCompiledInstruction;
@@ -27,6 +28,8 @@ impl AxiomEventParser {
         // 配置所有事件类型
         let configs = vec![
             GenericEventParseConfig {
+                program_id: AXIOM_1_PROGRAM_ID,
+                protocol_type: ProtocolType::AxiomTrading1,
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::AXIOM_PUMPFUN_BUY_IX,
                 event_type: EventType::AxiomPumpFunBuy,
@@ -35,7 +38,7 @@ impl AxiomEventParser {
             },
         ];
 
-        let inner = GenericEventParser::new(AXIOM_1_PROGRAM_ID, ProtocolType::AxiomTrading1, configs);
+        let inner = GenericEventParser::new(vec![AXIOM_1_PROGRAM_ID], configs);
 
         Self { inner }
     }
@@ -92,6 +95,13 @@ impl AxiomEventParser {
 
 #[async_trait::async_trait]
 impl EventParser for AxiomEventParser {
+
+    fn inner_instruction_configs(&self) -> HashMap<&'static str, Vec<GenericEventParseConfig>> {
+        self.inner.inner_instruction_configs()
+    }
+    fn instruction_configs(&self) -> HashMap<Vec<u8>, Vec<GenericEventParseConfig>> {
+        self.inner.instruction_configs()
+    }
     fn parse_events_from_inner_instruction(
         &self,
         inner_instruction: &UiCompiledInstruction,

@@ -391,7 +391,6 @@ pub fn parse_transfer_datas_from_next_instructions(
     inner_instruction: &solana_transaction_status::UiInnerInstructions,
     current_index: i8,
     accounts: &[Pubkey],
-    event_type: EventType,
 ) -> (Vec<TransferData>, Option<SwapData>) {
     let mut transfer_datas = vec![];
     // Get the next two instructions after the current instruction
