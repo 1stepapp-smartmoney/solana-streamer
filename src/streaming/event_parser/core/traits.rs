@@ -8,12 +8,11 @@ use solana_transaction_status::{
 };
 use std::fmt::Debug;
 use std::{collections::HashMap, str::FromStr};
-use std::sync::Arc;
-use tokio::sync::RwLock;
 
 use crate::streaming::event_parser::common::{
-    parse_transfer_datas_from_next_instructions, TransferData,
+    parse_transfer_datas_from_next_instructions, SwapData, TransferData,
 };
+use crate::streaming::event_parser::protocols::pumpswap::{PumpSwapBuyEvent, PumpSwapSellEvent};
 use crate::streaming::event_parser::{
     common::{utils::*, EventMetadata, EventType, ProtocolType},
     protocols::{
@@ -21,78 +20,6 @@ use crate::streaming::event_parser::{
         pumpfun::{PumpFunCreateTokenEvent, PumpFunTradeEvent},
     },
 };
-
-// 解析缓存配置
-const PARSE_CACHE_SIZE: usize = 10000;
-const CACHE_TTL_SECONDS: u64 = 300; // 5分钟
-
-/// 解析结果缓存
-#[derive(Clone)]
-pub struct ParseCacheEntry {
-    pub events: Vec<Box<dyn UnifiedEvent>>,
-    pub timestamp: u64,
-}
-
-/// 事件解析缓存
-pub struct EventParseCache {
-    cache: Arc<RwLock<HashMap<String, ParseCacheEntry>>>,
-    max_size: usize,
-    ttl_seconds: u64,
-}
-
-impl EventParseCache {
-    pub fn new(max_size: usize, ttl_seconds: u64) -> Self {
-        Self {
-            cache: Arc::new(RwLock::new(HashMap::with_capacity(max_size))),
-            max_size,
-            ttl_seconds,
-        }
-    }
-
-    pub async fn get(&self, key: &str) -> Option<Vec<Box<dyn UnifiedEvent>>> {
-        let cache = self.cache.read().await;
-        if let Some(entry) = cache.get(key) {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
-            
-            if now - entry.timestamp < self.ttl_seconds {
-                return Some(entry.events.clone());
-            }
-        }
-        None
-    }
-
-    pub async fn set(&self, key: String, events: Vec<Box<dyn UnifiedEvent>>) {
-        let mut cache = self.cache.write().await;
-        
-        // 清理过期条目
-        if cache.len() >= self.max_size {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
-            
-            cache.retain(|_, entry| now - entry.timestamp < self.ttl_seconds);
-        }
-        
-        let entry = ParseCacheEntry {
-            events,
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
-        };
-        
-        cache.insert(key, entry);
-    }
-}
-
-// 全局解析缓存实例
-lazy_static::lazy_static! {
-    pub static ref PARSE_CACHE: EventParseCache = EventParseCache::new(PARSE_CACHE_SIZE, CACHE_TTL_SECONDS);
-}
 
 /// Unified Event Interface - All protocol events must implement this trait
 pub trait UnifiedEvent: Debug + Send + Sync {
@@ -132,7 +59,11 @@ pub trait UnifiedEvent: Debug + Send + Sync {
     }
 
     /// Set transfer datas
-    fn set_transfer_datas(&mut self, transfer_datas: Vec<TransferData>);
+    fn set_transfer_datas(
+        &mut self,
+        transfer_datas: Vec<TransferData>,
+        swap_data: Option<SwapData>,
+    );
 
     /// Get index
     fn index(&self) -> String;
@@ -141,6 +72,10 @@ pub trait UnifiedEvent: Debug + Send + Sync {
 /// 事件解析器trait - 定义了事件解析的核心方法
 #[async_trait::async_trait]
 pub trait EventParser: Send + Sync {
+    /// 获取内联指令解析配置
+    fn inner_instruction_configs(&self) -> HashMap<&'static str, Vec<GenericEventParseConfig>>;
+    /// 获取指令解析配置
+    fn instruction_configs(&self) -> HashMap<Vec<u8>, Vec<GenericEventParseConfig>>;
     /// 从内联指令中解析事件数据
     #[allow(clippy::too_many_arguments)]
     fn parse_events_from_inner_instruction(
@@ -217,14 +152,14 @@ pub trait EventParser: Send + Sync {
                                     })
                                 {
                                     events.iter_mut().for_each(|event| {
-                                        let transfer_datas =
+                                        let (transfer_datas, swap_data) =
                                             parse_transfer_datas_from_next_instructions(
+                                                event.clone_boxed(),
                                                 inn,
                                                 -1_i8,
                                                 &accounts,
-                                                event.event_type(),
                                             );
-                                        event.set_transfer_datas(transfer_datas);
+                                        event.set_transfer_datas(transfer_datas, swap_data);
                                     });
                                 }
                                 instruction_events.extend(events);
@@ -271,31 +206,34 @@ pub trait EventParser: Send + Sync {
         program_received_time_ms: i64,
         bot_wallet: Option<Pubkey>,
     ) -> Result<Vec<Box<dyn UnifiedEvent>>> {
-
         // TODO: bug - 待优化
         // // 生成缓存键
         // let cache_key = format!("{}_{}_{}", signature, slot.unwrap_or(0), program_received_time_ms);
-        
+
         // // 尝试从缓存获取
         // if let Some(cached_events) = PARSE_CACHE.get(&cache_key).await {
         //     return Ok(cached_events);
         // }
-        
+
         let transaction = tx.transaction;
         // 检查交易元数据
-        let meta = tx
-            .meta
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Missing transaction metadata"))?;
+        let meta =
+            tx.meta.as_ref().ok_or_else(|| anyhow::anyhow!("Missing transaction metadata"))?;
 
         let mut address_table_lookups: Vec<Pubkey> = vec![];
         let mut inner_instructions: Vec<UiInnerInstructions> = vec![];
         if meta.err.is_none() {
             // 正确处理OptionSerializer类型
-            if let solana_transaction_status::option_serializer::OptionSerializer::Some(meta_inner_instructions) = &meta.inner_instructions {
+            if let solana_transaction_status::option_serializer::OptionSerializer::Some(
+                meta_inner_instructions,
+            ) = &meta.inner_instructions
+            {
                 inner_instructions = meta_inner_instructions.clone();
             }
-            if let solana_transaction_status::option_serializer::OptionSerializer::Some(loaded_addresses) = &meta.loaded_addresses {
+            if let solana_transaction_status::option_serializer::OptionSerializer::Some(
+                loaded_addresses,
+            ) = &meta.loaded_addresses
+            {
                 for lookup in &loaded_addresses.writable {
                     if let Ok(pubkey) = Pubkey::from_str(lookup) {
                         address_table_lookups.push(pubkey);
@@ -364,14 +302,14 @@ pub trait EventParser: Send + Sync {
                         {
                             if !events.is_empty() {
                                 events.iter_mut().for_each(|event| {
-                                    let transfer_datas =
+                                    let (transfer_datas, swap_data) =
                                         parse_transfer_datas_from_next_instructions(
+                                            event.clone_boxed(),
                                             &inner_instruction,
                                             index as i8,
                                             &accounts,
-                                            event.event_type(),
                                         );
-                                    event.set_transfer_datas(transfer_datas);
+                                    event.set_transfer_datas(transfer_datas, swap_data);
                                 });
                                 instruction_events.extend(events);
                             }
@@ -389,14 +327,14 @@ pub trait EventParser: Send + Sync {
                         {
                             if !events.is_empty() {
                                 events.iter_mut().for_each(|event| {
-                                    let transfer_datas =
+                                    let (transfer_datas, swap_data) =
                                         parse_transfer_datas_from_next_instructions(
+                                            event.clone_boxed(),
                                             &inner_instruction,
                                             index as i8,
                                             &accounts,
-                                            event.event_type(),
                                         );
-                                    event.set_transfer_datas(transfer_datas);
+                                    event.set_transfer_datas(transfer_datas, swap_data);
                                 });
                                 inner_instruction_events.extend(events);
                             }
@@ -422,13 +360,17 @@ pub trait EventParser: Send + Sync {
                             // 嵌套指令
                             let i_index_parts: Vec<&str> = i_index.split(".").collect();
                             let in_index_parts: Vec<&str> = in_index.split(".").collect();
-                            
-                            if !i_index_parts.is_empty() && !in_index_parts.is_empty() 
-                               && i_index_parts[0] == in_index_parts[0] {
-                                let i_index_child_index = i_index_parts.get(1)
+
+                            if !i_index_parts.is_empty()
+                                && !in_index_parts.is_empty()
+                                && i_index_parts[0] == in_index_parts[0]
+                            {
+                                let i_index_child_index = i_index_parts
+                                    .get(1)
                                     .and_then(|s| s.parse::<u32>().ok())
                                     .unwrap_or(0);
-                                let in_index_child_index = in_index_parts.get(1)
+                                let in_index_child_index = in_index_parts
+                                    .get(1)
                                     .and_then(|s| s.parse::<u32>().ok())
                                     .unwrap_or(0);
                                 if in_index_child_index > i_index_child_index {
@@ -441,12 +383,12 @@ pub trait EventParser: Send + Sync {
                 }
             }
         }
-        
+
         let result = self.process_events(instruction_events, bot_wallet);
-        
+
         // 缓存结果
         // PARSE_CACHE.set(cache_key, result.clone()).await;
-        
+
         Ok(result)
     }
 
@@ -476,8 +418,36 @@ pub trait EventParser: Send + Sync {
                 } else {
                     trade_info.is_dev_create_token_trade = false;
                 }
-            }
-            if let Some(pool_info) = event.as_any().downcast_ref::<BonkPoolCreateEvent>() {
+                if trade_info.metadata.swap_data.is_some() {
+                    trade_info.metadata.swap_data.as_mut().unwrap().from_amount =
+                        if trade_info.is_buy {
+                            trade_info.sol_amount
+                        } else {
+                            trade_info.token_amount
+                        };
+                    trade_info.metadata.swap_data.as_mut().unwrap().to_amount = if trade_info.is_buy
+                    {
+                        trade_info.token_amount
+                    } else {
+                        trade_info.sol_amount
+                    };
+                }
+            } else if let Some(trade_info) = event.as_any_mut().downcast_mut::<PumpSwapBuyEvent>() {
+                if trade_info.metadata.swap_data.is_some() {
+                    trade_info.metadata.swap_data.as_mut().unwrap().from_amount =
+                        trade_info.user_quote_amount_in;
+                    trade_info.metadata.swap_data.as_mut().unwrap().to_amount =
+                        trade_info.base_amount_out;
+                }
+            } else if let Some(trade_info) = event.as_any_mut().downcast_mut::<PumpSwapSellEvent>()
+            {
+                if trade_info.metadata.swap_data.is_some() {
+                    trade_info.metadata.swap_data.as_mut().unwrap().from_amount =
+                        trade_info.base_amount_in;
+                    trade_info.metadata.swap_data.as_mut().unwrap().to_amount =
+                        trade_info.user_quote_amount_out;
+                }
+            } else if let Some(pool_info) = event.as_any().downcast_ref::<BonkPoolCreateEvent>() {
                 bonk_dev_address = Some(pool_info.creator);
             } else if let Some(trade_info) = event.as_any_mut().downcast_mut::<BonkTradeEvent>() {
                 if Some(trade_info.payer) == bonk_dev_address {
@@ -491,14 +461,17 @@ pub trait EventParser: Send + Sync {
             let now = chrono::Utc::now().timestamp_millis();
             event.set_program_handle_time_consuming_ms(now - event.program_received_time_ms());
         }
-        
+
         // 记录处理时间
         let processing_time = start_time.elapsed();
         if processing_time.as_millis() > 10 {
-            log::warn!("Event processing took {}ms for {} events", 
-                      processing_time.as_millis(), events.len());
+            log::warn!(
+                "Event processing took {}ms for {} events",
+                processing_time.as_millis(),
+                events.len()
+            );
         }
-        
+
         events
     }
 
@@ -564,6 +537,8 @@ impl Clone for Box<dyn UnifiedEvent> {
 /// 通用事件解析器配置
 #[derive(Debug, Clone)]
 pub struct GenericEventParseConfig {
+    pub program_id: Pubkey,
+    pub protocol_type: ProtocolType,
     pub inner_instruction_discriminator: &'static str,
     pub instruction_discriminator: &'static [u8],
     pub event_type: EventType,
@@ -581,19 +556,14 @@ pub type InstructionEventParser =
 
 /// 通用事件解析器基类
 pub struct GenericEventParser {
-    program_id: Pubkey,
-    protocol_type: ProtocolType,
-    inner_instruction_configs: HashMap<&'static str, Vec<GenericEventParseConfig>>,
-    instruction_configs: HashMap<Vec<u8>, Vec<GenericEventParseConfig>>,
+    pub program_ids: Vec<Pubkey>,
+    pub inner_instruction_configs: HashMap<&'static str, Vec<GenericEventParseConfig>>,
+    pub instruction_configs: HashMap<Vec<u8>, Vec<GenericEventParseConfig>>,
 }
 
 impl GenericEventParser {
     /// 创建新的通用事件解析器
-    pub fn new(
-        program_id: Pubkey,
-        protocol_type: ProtocolType,
-        configs: Vec<GenericEventParseConfig>,
-    ) -> Self {
+    pub fn new(program_ids: Vec<Pubkey>, configs: Vec<GenericEventParseConfig>) -> Self {
         // 预分配容量，避免动态扩容
         let mut inner_instruction_configs = HashMap::with_capacity(configs.len());
         let mut instruction_configs = HashMap::with_capacity(configs.len());
@@ -609,12 +579,7 @@ impl GenericEventParser {
                 .push(config);
         }
 
-        Self {
-            program_id,
-            protocol_type,
-            inner_instruction_configs,
-            instruction_configs,
-        }
+        Self { program_ids, inner_instruction_configs, instruction_configs }
     }
 
     /// 通用的内联指令解析方法
@@ -629,10 +594,7 @@ impl GenericEventParser {
         program_received_time_ms: i64,
         index: String,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        let timestamp = block_time.unwrap_or(Timestamp {
-            seconds: 0,
-            nanos: 0,
-        });
+        let timestamp = block_time.unwrap_or(Timestamp { seconds: 0, nanos: 0 });
         let block_time_ms = timestamp.seconds * 1000 + (timestamp.nanos as i64) / 1_000_000;
         let metadata = EventMetadata::new(
             signature.to_string(),
@@ -640,9 +602,9 @@ impl GenericEventParser {
             slot,
             timestamp.seconds,
             block_time_ms,
-            self.protocol_type.clone(),
+            config.protocol_type.clone(),
             config.event_type.clone(),
-            self.program_id,
+            config.program_id,
             index,
             program_received_time_ms,
         );
@@ -662,10 +624,7 @@ impl GenericEventParser {
         program_received_time_ms: i64,
         index: String,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        let timestamp = block_time.unwrap_or(Timestamp {
-            seconds: 0,
-            nanos: 0,
-        });
+        let timestamp = block_time.unwrap_or(Timestamp { seconds: 0, nanos: 0 });
         let block_time_ms = timestamp.seconds * 1000 + (timestamp.nanos as i64) / 1_000_000;
         let metadata = EventMetadata::new(
             signature.to_string(),
@@ -673,9 +632,9 @@ impl GenericEventParser {
             slot,
             timestamp.seconds,
             block_time_ms,
-            self.protocol_type.clone(),
+            config.protocol_type.clone(),
             config.event_type.clone(),
-            self.program_id,
+            config.program_id,
             index,
             program_received_time_ms,
         );
@@ -685,6 +644,12 @@ impl GenericEventParser {
 
 #[async_trait::async_trait]
 impl EventParser for GenericEventParser {
+    fn inner_instruction_configs(&self) -> HashMap<&'static str, Vec<GenericEventParseConfig>> {
+        self.inner_instruction_configs.clone()
+    }
+    fn instruction_configs(&self) -> HashMap<Vec<u8>, Vec<GenericEventParseConfig>> {
+        self.instruction_configs.clone()
+    }
     /// 从内联指令中解析事件数据
     #[allow(clippy::too_many_arguments)]
     fn parse_events_from_inner_instruction(
@@ -697,9 +662,8 @@ impl EventParser for GenericEventParser {
         index: String,
     ) -> Vec<Box<dyn UnifiedEvent>> {
         let inner_instruction_data = inner_instruction.data.clone();
-        let inner_instruction_data_decoded = bs58::decode(inner_instruction_data)
-            .into_vec()
-            .unwrap_or_else(|_| vec![]);
+        let inner_instruction_data_decoded =
+            bs58::decode(inner_instruction_data).into_vec().unwrap_or_else(|_| vec![]);
         if inner_instruction_data_decoded.len() < 16 {
             return Vec::new();
         }
@@ -764,12 +728,12 @@ impl EventParser for GenericEventParser {
                 //     // continue;
                 // }
 
-                let account_pubkeys: Vec<Pubkey> = instruction
-                    .accounts
-                    .iter()
-                    .map(|&idx| accounts[idx as usize])
-                    .collect();
+                let account_pubkeys: Vec<Pubkey> =
+                    instruction.accounts.iter().map(|&idx| accounts[idx as usize]).collect();
                 for config in configs {
+                    if config.program_id != program_id {
+                        continue;
+                    }
                     if let Some(event) = self.parse_instruction_event(
                         config,
                         data,
@@ -790,13 +754,10 @@ impl EventParser for GenericEventParser {
     }
 
     fn should_handle(&self, program_id: &Pubkey) -> bool {
-        *program_id == self.program_id
+        self.program_ids.contains(program_id)
     }
 
     fn supported_program_ids(&self) -> Vec<Pubkey> {
-        vec![self.program_id]
+        self.program_ids.clone()
     }
 }
-
-pub struct SDKSystemEventParser {}
-impl SDKSystemEventParser {}

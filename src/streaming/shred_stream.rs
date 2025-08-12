@@ -15,6 +15,10 @@ use crate::protos::shredstream::shredstream_proxy_client::ShredstreamProxyClient
 use crate::protos::shredstream::SubscribeEntriesRequest;
 use solana_sdk::pubkey::Pubkey;
 
+// -------------- TODO 待重构 --------------
+//
+// -------------- --------------
+
 // 默认配置常量
 const DEFAULT_CHANNEL_SIZE: usize = 1000;
 const DEFAULT_BATCH_SIZE: usize = 100;
@@ -50,9 +54,7 @@ pub struct ShredBackpressureConfig {
 
 impl Default for ShredBackpressureConfig {
     fn default() -> Self {
-        Self {
-            channel_size: DEFAULT_CHANNEL_SIZE,
-        }
+        Self { channel_size: DEFAULT_CHANNEL_SIZE }
     }
 }
 
@@ -81,14 +83,8 @@ impl ShredClientConfig {
     /// 创建高性能配置（适合高并发场景）
     pub fn high_performance() -> Self {
         Self {
-            batch: ShredBatchConfig {
-                batch_size: 200,
-                batch_timeout_ms: 5,
-                enabled: true,
-            },
-            backpressure: ShredBackpressureConfig {
-                channel_size: 20000,
-            },
+            batch: ShredBatchConfig { batch_size: 200, batch_timeout_ms: 5, enabled: true },
+            backpressure: ShredBackpressureConfig { channel_size: 20000 },
             enable_metrics: true,
         }
     }
@@ -101,9 +97,7 @@ impl ShredClientConfig {
                 batch_timeout_ms: 1,
                 enabled: false, // 禁用批处理，即时处理
             },
-            backpressure: ShredBackpressureConfig {
-                channel_size: 1000,
-            },
+            backpressure: ShredBackpressureConfig { channel_size: 1000 },
             enable_metrics: false,
         }
     }
@@ -117,7 +111,6 @@ pub struct ShredPerformanceMetrics {
     pub average_processing_time_ms: f64,
     pub min_processing_time_ms: f64,
     pub max_processing_time_ms: f64,
-    pub memory_usage_mb: f64,
     pub last_update_time: std::time::Instant,
     pub events_in_window: u64,
     pub window_start_time: std::time::Instant,
@@ -136,9 +129,8 @@ impl ShredPerformanceMetrics {
             events_processed: 0,
             events_per_second: 0.0,
             average_processing_time_ms: 0.0,
-            min_processing_time_ms: f64::MAX,
+            min_processing_time_ms: 0.0,
             max_processing_time_ms: 0.0,
-            memory_usage_mb: 0.0,
             last_update_time: now,
             events_in_window: 0,
             window_start_time: now,
@@ -186,7 +178,7 @@ where
 
     pub fn add_event(&mut self, event: Box<dyn UnifiedEvent>) {
         self.batch.push(event);
-        
+
         // 检查是否需要刷新批次
         if self.batch.len() >= self.batch_size || self.should_flush_by_timeout() {
             self.flush();
@@ -262,7 +254,6 @@ impl ShredStreamGrpc {
         println!("   Avg Processing Time: {:.2}ms", metrics.average_processing_time_ms);
         println!("   Min Processing Time: {:.2}ms", metrics.min_processing_time_ms);
         println!("   Max Processing Time: {:.2}ms", metrics.max_processing_time_ms);
-        println!("   Memory Usage: {:.2}MB", metrics.memory_usage_mb);
         println!("---");
     }
 
@@ -292,26 +283,27 @@ impl ShredStreamGrpc {
 
         let mut metrics = self.metrics.lock().await;
         let now = std::time::Instant::now();
-        
+
         metrics.events_processed += events_processed;
         metrics.events_in_window += events_processed;
         metrics.last_update_time = now;
-        
+
         // 更新最快和最慢处理时间
-        if processing_time_ms < metrics.min_processing_time_ms {
+        if processing_time_ms < metrics.min_processing_time_ms || metrics.min_processing_time_ms == 0.0 {
             metrics.min_processing_time_ms = processing_time_ms;
         }
         if processing_time_ms > metrics.max_processing_time_ms {
             metrics.max_processing_time_ms = processing_time_ms;
         }
-        
+
         // 计算平均处理时间
         if metrics.events_processed > 0 {
-            metrics.average_processing_time_ms = 
-                (metrics.average_processing_time_ms * (metrics.events_processed - events_processed) as f64 + processing_time_ms) 
+            metrics.average_processing_time_ms = (metrics.average_processing_time_ms
+                * (metrics.events_processed - events_processed) as f64
+                + processing_time_ms)
                 / metrics.events_processed as f64;
         }
-        
+
         // 基于时间窗口计算每秒处理事件数（5秒窗口）
         let window_duration = std::time::Duration::from_secs(5);
         if now.duration_since(metrics.window_start_time) >= window_duration {
@@ -322,7 +314,7 @@ impl ShredStreamGrpc {
                 // 如果窗口内没有事件，保持之前的速率或设为0
                 metrics.events_per_second = 0.0;
             }
-            
+
             // 重置窗口
             metrics.events_in_window = 0;
             metrics.window_start_time = now;
@@ -330,9 +322,7 @@ impl ShredStreamGrpc {
             // 如果窗口还没满，不更新 events_per_second，保持之前的计算值
             // 这样可以避免因为单次批处理时间波动导致的指标跳跃
         }
-        
-        // 估算内存使用（基于处理的事件数量）
-        metrics.memory_usage_mb = metrics.events_processed as f64 * 0.001; // 每个事件约1KB
+
     }
 
     /// 订阅ShredStream事件（支持批处理和即时处理）
@@ -351,12 +341,12 @@ impl ShredStreamGrpc {
         if self.config.enable_metrics {
             self.start_auto_metrics_monitoring().await;
         }
-        
+
         let request = tonic::Request::new(SubscribeEntriesRequest {});
         let mut client = (*self.shredstream_client).clone();
         let stream = client.subscribe_entries(request).await?.into_inner();
         let (tx, rx) = mpsc::channel::<TransactionWithSlot>(self.config.backpressure.channel_size);
-        
+
         // 根据配置选择处理模式
         if self.config.batch.enabled {
             // 批处理模式
@@ -386,13 +376,13 @@ impl ShredStreamGrpc {
                 callback(event);
             }
         };
-        
+
         let mut batch_processor = ShredBatchProcessor::new(
-            batch_callback, 
-            self.config.batch.batch_size, 
-            self.config.batch.batch_timeout_ms
+            batch_callback,
+            self.config.batch.batch_size,
+            self.config.batch.batch_timeout_ms,
         );
-        
+
         tokio::spawn(async move {
             while let Some(message) = stream.next().await {
                 match message {
@@ -418,18 +408,19 @@ impl ShredStreamGrpc {
 
         let self_clone = self.clone();
         while let Some(transaction_with_slot) = rx.next().await {
-            if let Err(e) = self_clone.process_transaction_with_batch(
-                transaction_with_slot,
-                protocols.clone(),
-                bot_wallet,
-                &mut batch_processor,
-            )
-            .await
+            if let Err(e) = self_clone
+                .process_transaction_with_batch(
+                    transaction_with_slot,
+                    protocols.clone(),
+                    bot_wallet,
+                    &mut batch_processor,
+                )
+                .await
             {
                 error!("Error processing transaction: {e:?}");
             }
         }
-        
+
         // 处理剩余的事件
         batch_processor.flush();
 
@@ -474,13 +465,14 @@ impl ShredStreamGrpc {
 
         let self_clone = self.clone();
         while let Some(transaction_with_slot) = rx.next().await {
-            if let Err(e) = self_clone.process_transaction_immediate(
-                transaction_with_slot,
-                protocols.clone(),
-                bot_wallet,
-                &callback,
-            )
-            .await
+            if let Err(e) = self_clone
+                .process_transaction_immediate(
+                    transaction_with_slot,
+                    protocols.clone(),
+                    bot_wallet,
+                    &callback,
+                )
+                .await
             {
                 error!("Error processing transaction: {e:?}");
             }
@@ -578,7 +570,7 @@ impl ShredStreamGrpc {
 
         // 预分配向量容量
         let mut all_events = Vec::with_capacity(protocols.len() * 2);
-        
+
         for protocol in protocols {
             let parser = EventParserFactory::create_parser(protocol.clone());
             let events = parser
@@ -594,26 +586,29 @@ impl ShredStreamGrpc {
                 .unwrap_or_else(|_e| vec![]);
             all_events.extend(events);
         }
-        
+
         // 保存事件数量用于日志记录
         let event_count = all_events.len();
-        
+
         // 即时处理事件
         for event in all_events {
             callback(event);
         }
-        
+
         // 更新性能指标
         let processing_time = start_time.elapsed();
         let processing_time_ms = processing_time.as_millis() as f64;
-        
+
         // 实际调用性能指标更新
         self.update_metrics(event_count as u64, processing_time_ms).await;
-        
+
         // 记录慢处理操作
         if processing_time_ms > 5.0 {
-            log::warn!("ShredStream transaction processing took {}ms for {} events", 
-                      processing_time_ms, event_count);
+            log::warn!(
+                "ShredStream transaction processing took {}ms for {} events",
+                processing_time_ms,
+                event_count
+            );
         }
 
         Ok(())
@@ -699,7 +694,7 @@ impl ShredStreamGrpc {
 
         // 预分配向量容量
         let mut all_events = Vec::with_capacity(protocols.len() * 2);
-        
+
         for protocol in protocols {
             let parser = EventParserFactory::create_parser(protocol.clone());
             let events = parser
@@ -715,26 +710,29 @@ impl ShredStreamGrpc {
                 .unwrap_or_else(|_e| vec![]);
             all_events.extend(events);
         }
-        
+
         // 保存事件数量用于日志记录
         let event_count = all_events.len();
-        
+
         // 使用批处理器处理事件
         for event in all_events {
             batch_processor.add_event(event);
         }
-        
+
         // 更新性能指标
         let processing_time = start_time.elapsed();
         let processing_time_ms = processing_time.as_millis() as f64;
-        
+
         // 实际调用性能指标更新
         self.update_metrics(event_count as u64, processing_time_ms).await;
-        
+
         // 记录慢处理操作
         if processing_time_ms > 5.0 {
-            log::warn!("ShredStream transaction processing took {}ms for {} events", 
-                      processing_time_ms, event_count);
+            log::warn!(
+                "ShredStream transaction processing took {}ms for {} events",
+                processing_time_ms,
+                event_count
+            );
         }
 
         Ok(())

@@ -27,9 +27,92 @@ pub struct RaydiumCpmmSwapEvent {
 
 impl_unified_event!(RaydiumCpmmSwapEvent,);
 
+/// 存款
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
+pub struct RaydiumCpmmDepositEvent {
+    pub metadata: EventMetadata,
+    pub lp_token_amount: u64,
+    pub maximum_token0_amount: u64,
+    pub maximum_token1_amount: u64,
+
+    pub owner: Pubkey,
+    pub authority: Pubkey,
+    pub pool_state: Pubkey,
+    pub owner_lp_token: Pubkey,
+    pub token0_account: Pubkey,
+    pub token1_account: Pubkey,
+    pub token0_vault: Pubkey,
+    pub token1_vault: Pubkey,
+    pub token_program: Pubkey,
+    pub token_program2022: Pubkey,
+    pub vault0_mint: Pubkey,
+    pub vault1_mint: Pubkey,
+    pub lp_mint: Pubkey,
+}
+impl_unified_event!(RaydiumCpmmDepositEvent,);
+
+/// 初始化
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
+pub struct RaydiumCpmmInitializeEvent {
+    pub metadata: EventMetadata,
+    pub init_amount0: u64,
+    pub init_amount1: u64,
+    pub open_time: u64,
+
+    pub creator: Pubkey,
+    pub amm_config: Pubkey,
+    pub authority: Pubkey,
+    pub pool_state: Pubkey,
+    pub token0_mint: Pubkey,
+    pub token1_mint: Pubkey,
+    pub lp_mint: Pubkey,
+    pub creator_token0: Pubkey,
+    pub creator_token1: Pubkey,
+    pub creator_lp_token: Pubkey,
+    pub token0_vault: Pubkey,
+    pub token1_vault: Pubkey,
+    pub create_pool_fee: Pubkey,
+    pub observation_state: Pubkey,
+    pub token_program: Pubkey,
+    pub token0_program: Pubkey,
+    pub token1_program: Pubkey,
+    pub associated_token_program: Pubkey,
+    pub system_program: Pubkey,
+    pub rent: Pubkey,
+}
+impl_unified_event!(RaydiumCpmmInitializeEvent,);
+
+/// 提款
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
+pub struct RaydiumCpmmWithdrawEvent {
+    pub metadata: EventMetadata,
+    pub lp_token_amount: u64,
+    pub minimum_token0_amount: u64,
+    pub minimum_token1_amount: u64,
+
+    pub owner: Pubkey,
+    pub authority: Pubkey,
+    pub pool_state: Pubkey,
+    pub owner_lp_token: Pubkey,
+    pub token0_account: Pubkey,
+    pub token1_account: Pubkey,
+    pub token0_vault: Pubkey,
+    pub token1_vault: Pubkey,
+    pub token_program: Pubkey,
+    pub token_program2022: Pubkey,
+    pub vault0_mint: Pubkey,
+    pub vault1_mint: Pubkey,
+    pub lp_mint: Pubkey,
+    pub memo_program: Pubkey,
+}
+impl_unified_event!(RaydiumCpmmWithdrawEvent,);
+
 /// 事件鉴别器常量
 pub mod discriminators {
     // 指令鉴别器
     pub const SWAP_BASE_IN: &[u8] = &[143, 190, 90, 218, 196, 30, 51, 222];
     pub const SWAP_BASE_OUT: &[u8] = &[55, 217, 98, 86, 163, 74, 180, 173];
+    pub const DEPOSIT: &[u8] = &[242, 35, 198, 137, 82, 225, 242, 182];
+    pub const INITIALIZE: &[u8] = &[175, 175, 109, 31, 13, 152, 155, 237];
+    pub const WITHDRAW: &[u8] = &[183, 18, 70, 156, 148, 109, 161, 34];
 }

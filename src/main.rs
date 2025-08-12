@@ -7,22 +7,36 @@ use solana_streamer_sdk::{
                     parser::BONK_PROGRAM_ID, BonkMigrateToAmmEvent, BonkMigrateToCpswapEvent,
                     BonkPoolCreateEvent, BonkTradeEvent,
                 },
-                pumpfun::{parser::PUMPFUN_PROGRAM_ID, PumpFunCreateTokenEvent, PumpFunTradeEvent},
+                pumpfun::{
+                    parser::PUMPFUN_PROGRAM_ID, PumpFunCreateTokenEvent, PumpFunMigrateEvent,
+                    PumpFunTradeEvent,
+                },
                 pumpswap::{
                     parser::PUMPSWAP_PROGRAM_ID, PumpSwapBuyEvent, PumpSwapCreatePoolEvent,
                     PumpSwapDepositEvent, PumpSwapSellEvent, PumpSwapWithdrawEvent,
                 },
-                raydium_clmm::{
-                    parser::RAYDIUM_CLMM_PROGRAM_ID, RaydiumClmmSwapEvent, RaydiumClmmSwapV2Event,
+                raydium_amm_v4::{
+                    RaydiumAmmV4DepositEvent, RaydiumAmmV4Initialize2Event, RaydiumAmmV4SwapEvent,
+                    RaydiumAmmV4WithdrawEvent, RaydiumAmmV4WithdrawPnlEvent,
                 },
-                raydium_cpmm::{parser::RAYDIUM_CPMM_PROGRAM_ID, RaydiumCpmmSwapEvent},
-                photon::{parser::PHOTON_PROGRAM_ID, PhotonPumpFunTradeEvent},
+                raydium_clmm::{
+                    parser::RAYDIUM_CLMM_PROGRAM_ID, RaydiumClmmClosePositionEvent,
+                    RaydiumClmmCreatePoolEvent, RaydiumClmmDecreaseLiquidityV2Event,
+                    RaydiumClmmIncreaseLiquidityV2Event, RaydiumClmmOpenPositionV2Event,
+                    RaydiumClmmOpenPositionWithToken22NftEvent, RaydiumClmmSwapEvent,
+                    RaydiumClmmSwapV2Event,
+                },
+                raydium_cpmm::{
+                    parser::RAYDIUM_CPMM_PROGRAM_ID, RaydiumCpmmDepositEvent,
+                    RaydiumCpmmInitializeEvent, RaydiumCpmmSwapEvent, RaydiumCpmmWithdrawEvent,
+                },
+                BlockMetaEvent,
             },
             Protocol, UnifiedEvent,
         },
-        ShredStreamGrpc, YellowstoneGrpc,
-        yellowstone_grpc::ClientConfig,
+        grpc::ClientConfig,
         shred_stream::ShredClientConfig,
+        ShredStreamGrpc, YellowstoneGrpc,
     },
 };
 
@@ -78,7 +92,7 @@ async fn test_grpc() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Starting subscription...");
 
-    grpc.subscribe_events_v2(
+    grpc.subscribe_events_immediate(
         protocols,
         None,
         account_include,
@@ -109,10 +123,11 @@ async fn test_shreds() -> Result<(), Box<dyn std::error::Error>> {
         Protocol::Bonk,
         Protocol::RaydiumCpmm,
         Protocol::RaydiumClmm,
+        Protocol::RaydiumAmmV4,
     ];
 
     println!("Listening for events, press Ctrl+C to stop...");
-    shred_stream.shredstream_subscribe::<_,fn(Vec<Box<dyn UnifiedEvent>>)>(protocols, None, callback, None).await?;
+    shred_stream.shredstream_subscribe(protocols, None, callback).await?;
 
     Ok(())
 }

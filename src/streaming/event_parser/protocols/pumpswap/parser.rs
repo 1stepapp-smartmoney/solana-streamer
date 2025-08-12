@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use prost_types::Timestamp;
 use solana_sdk::{instruction::CompiledInstruction, pubkey::Pubkey};
 use solana_transaction_status::UiCompiledInstruction;
@@ -31,6 +33,8 @@ impl PumpSwapEventParser {
         // 配置所有事件类型
         let configs = vec![
             GenericEventParseConfig {
+                program_id: PUMPSWAP_PROGRAM_ID,
+                protocol_type: ProtocolType::PumpSwap,
                 inner_instruction_discriminator: discriminators::BUY_EVENT,
                 instruction_discriminator: discriminators::BUY_IX,
                 event_type: EventType::PumpSwapBuy,
@@ -38,6 +42,8 @@ impl PumpSwapEventParser {
                 instruction_parser: Self::parse_buy_instruction,
             },
             GenericEventParseConfig {
+                program_id: PUMPSWAP_PROGRAM_ID,
+                protocol_type: ProtocolType::PumpSwap,
                 inner_instruction_discriminator: discriminators::SELL_EVENT,
                 instruction_discriminator: discriminators::SELL_IX,
                 event_type: EventType::PumpSwapSell,
@@ -45,6 +51,8 @@ impl PumpSwapEventParser {
                 instruction_parser: Self::parse_sell_instruction,
             },
             GenericEventParseConfig {
+                program_id: PUMPSWAP_PROGRAM_ID,
+                protocol_type: ProtocolType::PumpSwap,
                 inner_instruction_discriminator: discriminators::CREATE_POOL_EVENT,
                 instruction_discriminator: discriminators::CREATE_POOL_IX,
                 event_type: EventType::PumpSwapCreatePool,
@@ -52,6 +60,8 @@ impl PumpSwapEventParser {
                 instruction_parser: Self::parse_create_pool_instruction,
             },
             GenericEventParseConfig {
+                program_id: PUMPSWAP_PROGRAM_ID,
+                protocol_type: ProtocolType::PumpSwap,
                 inner_instruction_discriminator: discriminators::DEPOSIT_EVENT,
                 instruction_discriminator: discriminators::DEPOSIT_IX,
                 event_type: EventType::PumpSwapDeposit,
@@ -59,6 +69,8 @@ impl PumpSwapEventParser {
                 instruction_parser: Self::parse_deposit_instruction,
             },
             GenericEventParseConfig {
+                program_id: PUMPSWAP_PROGRAM_ID,
+                protocol_type: ProtocolType::PumpSwap,
                 inner_instruction_discriminator: discriminators::WITHDRAW_EVENT,
                 instruction_discriminator: discriminators::WITHDRAW_IX,
                 event_type: EventType::PumpSwapWithdraw,
@@ -67,7 +79,7 @@ impl PumpSwapEventParser {
             },
         ];
 
-        let inner = GenericEventParser::new(PUMPSWAP_PROGRAM_ID, ProtocolType::PumpSwap, configs);
+        let inner = GenericEventParser::new(vec![PUMPSWAP_PROGRAM_ID], configs);
 
         Self { inner }
     }
@@ -376,6 +388,12 @@ impl PumpSwapEventParser {
 
 #[async_trait::async_trait]
 impl EventParser for PumpSwapEventParser {
+    fn inner_instruction_configs(&self) -> HashMap<&'static str, Vec<GenericEventParseConfig>> {
+        self.inner.inner_instruction_configs()
+    }
+    fn instruction_configs(&self) -> HashMap<Vec<u8>, Vec<GenericEventParseConfig>> {
+        self.inner.instruction_configs()
+    }
     fn parse_events_from_inner_instruction(
         &self,
         inner_instruction: &UiCompiledInstruction,

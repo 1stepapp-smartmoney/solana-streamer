@@ -114,14 +114,84 @@ impl_unified_event!(
     last_update_timestamp
 );
 
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
+pub struct PumpFunMigrateEvent {
+    #[borsh(skip)]
+    pub metadata: EventMetadata,
+
+    pub user: Pubkey,
+    pub mint: Pubkey,
+    pub mint_amount: u64,
+    pub sol_amount: u64,
+    pub pool_migration_fee: u64,
+    pub bonding_curve: Pubkey,
+    pub timestamp: i64,
+    pub pool: Pubkey,
+
+    #[borsh(skip)]
+    pub global: Pubkey,
+    #[borsh(skip)]
+    pub withdraw_authority: Pubkey,
+    #[borsh(skip)]
+    pub associated_bonding_curve: Pubkey,
+    #[borsh(skip)]
+    pub system_program: Pubkey,
+    #[borsh(skip)]
+    pub token_program: Pubkey,
+    #[borsh(skip)]
+    pub pump_amm: Pubkey,
+    #[borsh(skip)]
+    pub pool_authority: Pubkey,
+    #[borsh(skip)]
+    pub pool_authority_mint_account: Pubkey,
+    #[borsh(skip)]
+    pub pool_authority_wsol_account: Pubkey,
+    #[borsh(skip)]
+    pub amm_global_config: Pubkey,
+    #[borsh(skip)]
+    pub wsol_mint: Pubkey,
+    #[borsh(skip)]
+    pub lp_mint: Pubkey,
+    #[borsh(skip)]
+    pub user_pool_token_account: Pubkey,
+    #[borsh(skip)]
+    pub pool_base_token_account: Pubkey,
+    #[borsh(skip)]
+    pub pool_quote_token_account: Pubkey,
+    #[borsh(skip)]
+    pub token_2022_program: Pubkey,
+    #[borsh(skip)]
+    pub associated_token_program: Pubkey,
+    #[borsh(skip)]
+    pub pump_amm_event_authority: Pubkey,
+    #[borsh(skip)]
+    pub event_authority: Pubkey,
+    #[borsh(skip)]
+    pub program: Pubkey,
+}
+
+impl_unified_event!(
+    PumpFunMigrateEvent,
+    user,
+    mint,
+    mint_amount,
+    sol_amount,
+    pool_migration_fee,
+    bonding_curve,
+    timestamp,
+    pool
+);
+
 /// 事件鉴别器常量
 pub mod discriminators {
     // 事件鉴别器
     pub const CREATE_TOKEN_EVENT: &str = "0xe445a52e51cb9a1d1b72a94ddeeb6376";
     pub const TRADE_EVENT: &str = "0xe445a52e51cb9a1dbddb7fd34ee661ee";
+    pub const COMPLETE_PUMP_AMM_MIGRATION_EVENT: &str = "0xe445a52e51cb9a1dbde95db95c94ea94";
 
     // 指令鉴别器
     pub const CREATE_TOKEN_IX: &[u8] = &[24, 30, 200, 40, 5, 28, 7, 119];
     pub const BUY_IX: &[u8] = &[102, 6, 61, 18, 1, 218, 235, 234];
     pub const SELL_IX: &[u8] = &[51, 230, 133, 164, 1, 127, 131, 173];
+    pub const MIGRATE_IX: &[u8] = &[155, 234, 231, 146, 236, 158, 162, 30];
 }

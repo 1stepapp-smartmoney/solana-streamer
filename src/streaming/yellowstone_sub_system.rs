@@ -1,6 +1,9 @@
 use crate::{
     common::AnyResult,
-    streaming::yellowstone_grpc::{TransactionPretty, YellowstoneGrpc, BackpressureStrategy},
+    streaming::{
+        grpc::{BackpressureStrategy, EventPretty, StreamHandler},
+        yellowstone_grpc::YellowstoneGrpc,
+    },
 };
 use futures::{channel::mpsc, StreamExt};
 use log::error;
@@ -10,7 +13,7 @@ use solana_transaction_status::EncodedTransactionWithStatusMeta;
 
 const SYSTEM_PROGRAM_ID: Pubkey = pubkey!("11111111111111111111111111111111");
 // 根据实际并发量调整通道大小，避免背压
-const CHANNEL_SIZE: usize = 50000;  // 增加到 50000
+const CHANNEL_SIZE: usize = 50000; // 增加到 50000
 
 #[derive(Debug)]
 pub enum SystemEvent {
@@ -38,11 +41,14 @@ impl YellowstoneGrpc {
         let addrs = vec![SYSTEM_PROGRAM_ID.to_string()];
         let account_include = account_include.unwrap_or_default();
         let account_exclude = account_exclude.unwrap_or_default();
-        let transactions =
-            self.get_subscribe_request_filter(account_include, account_exclude, addrs);
+        let transactions = self.subscription_manager.get_subscribe_request_filter(
+            account_include,
+            account_exclude,
+            addrs,
+        );
         let (mut subscribe_tx, mut stream) =
-            self.subscribe_with_request(transactions, None).await?;
-        let (mut tx, mut rx) = mpsc::channel::<TransactionPretty>(CHANNEL_SIZE);
+            self.subscription_manager.subscribe_with_request(transactions, None).await?;
+        let (mut tx, mut rx) = mpsc::channel::<EventPretty>(CHANNEL_SIZE);
 
         let callback = Box::new(callback);
 
@@ -50,8 +56,13 @@ impl YellowstoneGrpc {
             while let Some(message) = stream.next().await {
                 match message {
                     Ok(msg) => {
-                        if let Err(e) =
-                            Self::handle_stream_message(msg, &mut tx, &mut subscribe_tx, BackpressureStrategy::Block).await
+                        if let Err(e) = StreamHandler::handle_stream_message(
+                            msg,
+                            &mut tx,
+                            &mut subscribe_tx,
+                            BackpressureStrategy::Block,
+                        )
+                        .await
                         {
                             error!("Error handling message: {e:?}");
                             break;
@@ -65,37 +76,38 @@ impl YellowstoneGrpc {
             }
         });
 
-        while let Some(transaction_pretty) = rx.next().await {
-            if let Err(e) = Self::process_system_transaction(transaction_pretty, &*callback).await {
+        while let Some(event_pretty) = rx.next().await {
+            if let Err(e) = Self::process_system_transaction(event_pretty, &*callback).await {
                 error!("Error processing transaction: {e:?}");
             }
         }
         Ok(())
     }
 
-    async fn process_system_transaction<F>(
-        transaction_pretty: TransactionPretty,
-        callback: &F,
-    ) -> AnyResult<()>
+    async fn process_system_transaction<F>(event_pretty: EventPretty, callback: &F) -> AnyResult<()>
     where
         F: Fn(SystemEvent) + Send + Sync,
     {
-        let trade_raw: EncodedTransactionWithStatusMeta = transaction_pretty.tx;
-        let meta = trade_raw
-            .meta
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Missing transaction metadata"))?;
+        match event_pretty {
+            EventPretty::Transaction(transaction_pretty) => {
+                let trade_raw: EncodedTransactionWithStatusMeta = transaction_pretty.tx;
+                let meta = trade_raw
+                    .meta
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("Missing transaction metadata"))?;
 
-        if meta.err.is_some() {
-            return Ok(());
+                if meta.err.is_some() {
+                    return Ok(());
+                }
+
+                callback(SystemEvent::NewTransfer(TransferInfo {
+                    slot: transaction_pretty.slot,
+                    signature: transaction_pretty.signature.to_string(),
+                    tx: trade_raw.transaction.decode(),
+                }));
+            }
+            _ => {}
         }
-
-        callback(SystemEvent::NewTransfer(TransferInfo {
-            slot: transaction_pretty.slot,
-            signature: transaction_pretty.signature.to_string(),
-            tx: trade_raw.transaction.decode(),
-        }));
-
         Ok(())
     }
 }

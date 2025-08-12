@@ -14,11 +14,12 @@
    - **Bonk**: 代币发布平台事件 (letsbonk.fun)
    - **Raydium CPMM**: Raydium 集中池做市商事件
    - **Raydium CLMM**: Raydium 集中流动性做市商事件
+   - **Raydium AMM V4**: Raydium 自动做市商 V4 事件
 5. **统一事件接口**: 在所有支持的协议中保持一致的事件处理
 6. **事件解析系统**: 自动解析和分类协议特定事件
 7. **高性能**: 针对低延迟事件处理进行优化
 8. **批处理优化**: 批量处理事件以减少回调开销
-9. **性能监控**: 内置性能指标监控，包括事件处理速度、内存使用等
+9. **性能监控**: 内置性能指标监控，包括事件处理速度等
 10. **内存优化**: 对象池和缓存机制减少内存分配
 11. **灵活配置系统**: 支持自定义批处理大小、背压策略、通道大小等参数
 12. **预设配置**: 提供高性能、低延迟、有序处理等预设配置
@@ -41,17 +42,34 @@ git clone https://github.com/0xfnzero/solana-streamer
 
 ```toml
 # 添加到您的 Cargo.toml
-solana-streamer-sdk = { path = "./solana-streamer", version = "0.1.11" }
+solana-streamer-sdk = { path = "./solana-streamer", version = "0.2.1" }
 ```
 
 ### 使用 crates.io
 
 ```toml
 # 添加到您的 Cargo.toml
-solana-streamer-sdk = "0.1.11"
+solana-streamer-sdk = "0.2.1"
 ```
 
 ## 使用示例
+
+### 快速开始 - 解析交易事件
+
+您可以通过运行内置示例来快速测试库的交易事件解析功能：
+
+```bash
+cargo run --example parse_tx_events
+```
+
+该示例演示了：
+- 如何使用 RPC 从 Solana 主网解析交易数据
+- 多协议事件解析（PumpFun、PumpSwap、Bonk、Raydium CPMM/CLMM/AMM V4）
+- 交易详情提取，包括费用、日志和计算单元
+
+该示例使用预定义的交易签名，展示如何从交易数据中提取协议特定的事件。
+
+### 高级用法示例
 
 ```rust
 use solana_streamer_sdk::{
@@ -59,32 +77,53 @@ use solana_streamer_sdk::{
     streaming::{
         event_parser::{
             protocols::{
-                bonk::{parser::BONK_PROGRAM_ID, BonkPoolCreateEvent, BonkTradeEvent},
-                pumpfun::{parser::PUMPFUN_PROGRAM_ID, PumpFunCreateTokenEvent, PumpFunTradeEvent},
+                bonk::{
+                    parser::BONK_PROGRAM_ID, BonkMigrateToAmmEvent, BonkMigrateToCpswapEvent,
+                    BonkPoolCreateEvent, BonkTradeEvent,
+                },
+                pumpfun::{
+                    parser::PUMPFUN_PROGRAM_ID, PumpFunCreateTokenEvent, PumpFunMigrateEvent,
+                    PumpFunTradeEvent,
+                },
                 pumpswap::{
                     parser::PUMPSWAP_PROGRAM_ID, PumpSwapBuyEvent, PumpSwapCreatePoolEvent,
                     PumpSwapDepositEvent, PumpSwapSellEvent, PumpSwapWithdrawEvent,
                 },
-                raydium_clmm::{
-                    parser::RAYDIUM_CLMM_PROGRAM_ID, RaydiumClmmSwapEvent, RaydiumClmmSwapV2Event,
+                raydium_amm_v4::{
+                    RaydiumAmmV4DepositEvent, RaydiumAmmV4Initialize2Event, RaydiumAmmV4SwapEvent,
+                    RaydiumAmmV4WithdrawEvent, RaydiumAmmV4WithdrawPnlEvent,
                 },
-                raydium_cpmm::{parser::RAYDIUM_CPMM_PROGRAM_ID, RaydiumCpmmSwapEvent},
+                raydium_clmm::{
+                    parser::RAYDIUM_CLMM_PROGRAM_ID, RaydiumClmmClosePositionEvent,
+                    RaydiumClmmCreatePoolEvent, RaydiumClmmDecreaseLiquidityV2Event,
+                    RaydiumClmmIncreaseLiquidityV2Event, RaydiumClmmOpenPositionV2Event,
+                    RaydiumClmmOpenPositionWithToken22NftEvent, RaydiumClmmSwapEvent,
+                    RaydiumClmmSwapV2Event,
+                },
+                raydium_cpmm::{
+                    parser::RAYDIUM_CPMM_PROGRAM_ID, RaydiumCpmmDepositEvent,
+                    RaydiumCpmmInitializeEvent, RaydiumCpmmSwapEvent, RaydiumCpmmWithdrawEvent,
+                },
+                BlockMetaEvent,
             },
             Protocol, UnifiedEvent,
         },
+        grpc::ClientConfig,
+        shred_stream::ShredClientConfig,
         ShredStreamGrpc, YellowstoneGrpc,
     },
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("Starting Solana Streamer...");
     test_grpc().await?;
     test_shreds().await?;
     Ok(())
 }
 
 async fn test_grpc() -> Result<(), Box<dyn std::error::Error>> {
-    println!("正在订阅 Yellowstone gRPC 事件...");
+    println!("Subscribing to Yellowstone gRPC events...");
 
     // 创建低延迟配置
     let mut config = ClientConfig::low_latency();
@@ -95,6 +134,8 @@ async fn test_grpc() -> Result<(), Box<dyn std::error::Error>> {
         None,
         config,
     )?;
+
+    println!("GRPC client created successfully");
 
     let callback = create_event_callback();
 
@@ -107,6 +148,8 @@ async fn test_grpc() -> Result<(), Box<dyn std::error::Error>> {
         Protocol::RaydiumClmm,
     ];
 
+    println!("Protocols to monitor: {:?}", protocols);
+
     // 过滤账号
     let account_include = vec![
         PUMPFUN_PROGRAM_ID.to_string(),      // 监听 pumpfun 程序ID
@@ -114,13 +157,16 @@ async fn test_grpc() -> Result<(), Box<dyn std::error::Error>> {
         BONK_PROGRAM_ID.to_string(),         // 监听 bonk 程序ID
         RAYDIUM_CPMM_PROGRAM_ID.to_string(), // 监听 raydium_cpmm 程序ID
         RAYDIUM_CLMM_PROGRAM_ID.to_string(), // 监听 raydium_clmm 程序ID
-        "xxxxxxxx".to_string(),              // 监听 xxxxx 账号
     ];
     let account_exclude = vec![];
     let account_required = vec![];
 
-    println!("开始监听事件，按 Ctrl+C 停止...");
-    grpc.subscribe_events_v2(
+    println!("Starting to listen for events, press Ctrl+C to stop...");
+    println!("Monitoring programs: {:?}", account_include);
+
+    println!("Starting subscription...");
+
+    grpc.subscribe_events_immediate(
         protocols,
         None,
         account_include,
@@ -135,13 +181,15 @@ async fn test_grpc() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn test_shreds() -> Result<(), Box<dyn std::error::Error>> {
-    println!("正在订阅 ShredStream 事件...");
+    println!("Subscribing to ShredStream events...");
+
     // 创建低延迟配置
     let mut config = ShredClientConfig::low_latency();
     // 启用性能监控, 有性能损耗, 默认关闭
     config.enable_metrics = true;
     let shred_stream =
         ShredStreamGrpc::new_with_config("http://127.0.0.1:10800".to_string(), config).await?;
+
     let callback = create_event_callback();
     let protocols = vec![
         Protocol::PumpFun,
@@ -149,26 +197,31 @@ async fn test_shreds() -> Result<(), Box<dyn std::error::Error>> {
         Protocol::Bonk,
         Protocol::RaydiumCpmm,
         Protocol::RaydiumClmm,
+        Protocol::RaydiumAmmV4,
     ];
 
-    println!("开始监听事件，按 Ctrl+C 停止...");
-    shred_stream
-        .shredstream_subscribe(protocols, None, callback)
-        .await?;
+    println!("Listening for events, press Ctrl+C to stop...");
+    shred_stream.shredstream_subscribe(protocols, None, callback).await?;
 
     Ok(())
 }
 
 fn create_event_callback() -> impl Fn(Box<dyn UnifiedEvent>) {
     |event: Box<dyn UnifiedEvent>| {
+        println!("🎉 Event received! Type: {:?}, ID: {}", event.event_type(), event.id());
         match_event!(event, {
+            // block meta
+            BlockMetaEvent => |e: BlockMetaEvent| {
+                println!("BlockMetaEvent: {e:?}");
+            },
+            // bonk
             BonkPoolCreateEvent => |e: BonkPoolCreateEvent| {
                 // 使用grpc的时候，可以从每个事件中获取到block_time
                 println!("block_time: {:?}, block_time_ms: {:?}", e.metadata.block_time, e.metadata.block_time_ms);
                 println!("BonkPoolCreateEvent: {:?}", e.base_mint_param.symbol);
             },
             BonkTradeEvent => |e: BonkTradeEvent| {
-                println!("BonkTradeEvent: {:?}", e);
+                println!("BonkTradeEvent: {e:?}");
             },
             BonkMigrateToAmmEvent => |e: BonkMigrateToAmmEvent| {
                 println!("BonkMigrateToAmmEvent: {e:?}");
@@ -176,36 +229,86 @@ fn create_event_callback() -> impl Fn(Box<dyn UnifiedEvent>) {
             BonkMigrateToCpswapEvent => |e: BonkMigrateToCpswapEvent| {
                 println!("BonkMigrateToCpswapEvent: {e:?}");
             },
+            // pumpfun
             PumpFunTradeEvent => |e: PumpFunTradeEvent| {
-                println!("PumpFunTradeEvent: {:?}", e);
+                println!("PumpFunTradeEvent: {e:?}");
+            },
+            PumpFunMigrateEvent => |e: PumpFunMigrateEvent| {
+                println!("PumpFunMigrateEvent: {e:?}");
             },
             PumpFunCreateTokenEvent => |e: PumpFunCreateTokenEvent| {
-                println!("PumpFunCreateTokenEvent: {:?}", e);
+                println!("PumpFunCreateTokenEvent: {e:?}");
             },
+            // pumpswap
             PumpSwapBuyEvent => |e: PumpSwapBuyEvent| {
-                println!("Buy event: {:?}", e);
+                println!("Buy event: {e:?}");
             },
             PumpSwapSellEvent => |e: PumpSwapSellEvent| {
-                println!("Sell event: {:?}", e);
+                println!("Sell event: {e:?}");
             },
             PumpSwapCreatePoolEvent => |e: PumpSwapCreatePoolEvent| {
-                println!("CreatePool event: {:?}", e);
+                println!("CreatePool event: {e:?}");
             },
             PumpSwapDepositEvent => |e: PumpSwapDepositEvent| {
-                println!("Deposit event: {:?}", e);
+                println!("Deposit event: {e:?}");
             },
             PumpSwapWithdrawEvent => |e: PumpSwapWithdrawEvent| {
-                println!("Withdraw event: {:?}", e);
+                println!("Withdraw event: {e:?}");
             },
+            // raydium_cpmm
             RaydiumCpmmSwapEvent => |e: RaydiumCpmmSwapEvent| {
-                println!("RaydiumCpmmSwapEvent: {:?}", e);
+                println!("RaydiumCpmmSwapEvent: {e:?}");
             },
+            RaydiumCpmmDepositEvent => |e: RaydiumCpmmDepositEvent| {
+                println!("RaydiumCpmmDepositEvent: {e:?}");
+            },
+            RaydiumCpmmInitializeEvent => |e: RaydiumCpmmInitializeEvent| {
+                println!("RaydiumCpmmInitializeEvent: {e:?}");
+            },
+            RaydiumCpmmWithdrawEvent => |e: RaydiumCpmmWithdrawEvent| {
+                println!("RaydiumCpmmWithdrawEvent: {e:?}");
+            },
+            // raydium_clmm
             RaydiumClmmSwapEvent => |e: RaydiumClmmSwapEvent| {
-                println!("RaydiumClmmSwapEvent: {:?}", e);
+                println!("RaydiumClmmSwapEvent: {e:?}");
             },
             RaydiumClmmSwapV2Event => |e: RaydiumClmmSwapV2Event| {
-                println!("RaydiumClmmSwapV2Event: {:?}", e);
-            }
+                println!("RaydiumClmmSwapV2Event: {e:?}");
+            },
+            RaydiumClmmClosePositionEvent => |e: RaydiumClmmClosePositionEvent| {
+                println!("RaydiumClmmClosePositionEvent: {e:?}");
+            },
+            RaydiumClmmDecreaseLiquidityV2Event => |e: RaydiumClmmDecreaseLiquidityV2Event| {
+                println!("RaydiumClmmDecreaseLiquidityV2Event: {e:?}");
+            },
+            RaydiumClmmCreatePoolEvent => |e: RaydiumClmmCreatePoolEvent| {
+                println!("RaydiumClmmCreatePoolEvent: {e:?}");
+            },
+            RaydiumClmmIncreaseLiquidityV2Event => |e: RaydiumClmmIncreaseLiquidityV2Event| {
+                println!("RaydiumClmmIncreaseLiquidityV2Event: {e:?}");
+            },
+            RaydiumClmmOpenPositionWithToken22NftEvent => |e: RaydiumClmmOpenPositionWithToken22NftEvent| {
+                println!("RaydiumClmmOpenPositionWithToken22NftEvent: {e:?}");
+            },
+            RaydiumClmmOpenPositionV2Event => |e: RaydiumClmmOpenPositionV2Event| {
+                println!("RaydiumClmmOpenPositionV2Event: {e:?}");
+            },
+            // raydium_amm_v4
+            RaydiumAmmV4SwapEvent => |e: RaydiumAmmV4SwapEvent| {
+                println!("RaydiumAmmV4SwapEvent: {e:?}");
+            },
+            RaydiumAmmV4DepositEvent => |e: RaydiumAmmV4DepositEvent| {
+                println!("RaydiumAmmV4DepositEvent: {e:?}");
+            },
+            RaydiumAmmV4Initialize2Event => |e: RaydiumAmmV4Initialize2Event| {
+                println!("RaydiumAmmV4Initialize2Event: {e:?}");
+            },
+            RaydiumAmmV4WithdrawEvent => |e: RaydiumAmmV4WithdrawEvent| {
+                println!("RaydiumAmmV4WithdrawEvent: {e:?}");
+            },
+            RaydiumAmmV4WithdrawPnlEvent => |e: RaydiumAmmV4WithdrawPnlEvent| {
+                println!("RaydiumAmmV4WithdrawPnlEvent: {e:?}");
+            },
         });
     }
 }
@@ -218,6 +321,7 @@ fn create_event_callback() -> impl Fn(Box<dyn UnifiedEvent>) {
 - **Bonk**: 代币发布平台 (letsbonk.fun)
 - **Raydium CPMM**: Raydium 集中池做市商协议
 - **Raydium CLMM**: Raydium 集中流动性做市商协议
+- **Raydium AMM V4**: Raydium 自动做市商 V4 协议
 
 ## 事件流服务
 
@@ -258,6 +362,7 @@ src/
 │   │   │   ├── bonk/ # Bonk 事件解析
 │   │   │   ├── pumpfun/ # PumpFun 事件解析
 │   │   │   ├── pumpswap/ # PumpSwap 事件解析
+│   │   │   ├── raydium_amm_v4/ # Raydium AMM V4 事件解析
 │   │   │   ├── raydium_cpmm/ # Raydium CPMM 事件解析
 │   │   │   └── raydium_clmm/ # Raydium CLMM 事件解析
 │   │   └── factory.rs # 解析器工厂
@@ -291,7 +396,6 @@ MIT 许可证
 1. **网络稳定性**: 确保稳定的网络连接以进行连续的事件流传输
 2. **速率限制**: 注意公共 gRPC 端点的速率限制
 3. **错误恢复**: 实现适当的错误处理和重连逻辑
-4. **资源管理**: 监控长时间运行流的内存和 CPU 使用情况
 5. **合规性**: 确保遵守相关法律法规
 
 ## 语言版本

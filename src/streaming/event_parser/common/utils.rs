@@ -4,10 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 /// 获取当前时间戳
 pub fn current_timestamp() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
-        .as_secs() as i64
+    SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_secs() as i64
 }
 
 /// 从base64字符串解码数据
@@ -57,6 +54,14 @@ pub fn read_u64_le(data: &[u8], offset: usize) -> Option<u64> {
     Some(u64::from_le_bytes(bytes))
 }
 
+pub fn read_i32_le(data: &[u8], offset: usize) -> Option<i32> {
+    if data.len() < offset + 4 {
+        return None;
+    }
+    let bytes: [u8; 4] = data[offset..offset + 4].try_into().ok()?;
+    Some(i32::from_le_bytes(bytes))
+}
+
 pub fn read_u128_le(data: &[u8], offset: usize) -> Option<u128> {
     if data.len() < offset + 16 {
         return None;
@@ -71,6 +76,20 @@ pub fn read_u8_le(data: &[u8], offset: usize) -> Option<u8> {
     }
     let bytes: [u8; 1] = data[offset..offset + 1].try_into().ok()?;
     Some(u8::from_le_bytes(bytes))
+}
+
+pub fn read_option_bool(data: &[u8], offset: &mut usize) -> Option<Option<bool>> {
+    let has_value = data.get(*offset)?.clone();
+    *offset += 1;
+
+    if has_value == 0 {
+        return Some(None);
+    }
+
+    let value = data.get(*offset)?.clone();
+    *offset += 1;
+
+    Some(Some(value != 0))
 }
 
 /// 安全地从字节数组中读取u32

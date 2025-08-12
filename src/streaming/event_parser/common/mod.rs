@@ -55,8 +55,8 @@ macro_rules! impl_unified_event {
                 }
             }
 
-            fn set_transfer_datas(&mut self, transfer_datas: Vec<$crate::streaming::event_parser::common::types::TransferData>) {
-                self.metadata.transfer_datas = transfer_datas;
+            fn set_transfer_datas(&mut self, transfer_datas: Vec<$crate::streaming::event_parser::common::types::TransferData>, swap_data: Option<$crate::streaming::event_parser::common::types::SwapData>) {
+                self.metadata.set_transfer_datas(transfer_datas, swap_data);
             }
 
             fn index(&self) -> String {

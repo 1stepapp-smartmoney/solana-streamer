@@ -1,0 +1,14 @@
+// 流处理相关的常量定义
+
+// 默认配置常量
+pub const DEFAULT_CONNECT_TIMEOUT: u64 = 10;
+pub const DEFAULT_REQUEST_TIMEOUT: u64 = 60;
+pub const DEFAULT_CHANNEL_SIZE: usize = 1000;
+pub const DEFAULT_MAX_DECODING_MESSAGE_SIZE: usize = 1024 * 1024 * 10;
+pub const DEFAULT_BATCH_SIZE: usize = 100;
+pub const DEFAULT_BATCH_TIMEOUT_MS: u64 = 5;
+
+// 性能监控相关常量
+pub const DEFAULT_METRICS_WINDOW_SECONDS: u64 = 5;
+pub const DEFAULT_METRICS_PRINT_INTERVAL_SECONDS: u64 = 10;
+pub const SLOW_PROCESSING_THRESHOLD_MS: f64 = 10.0;

@@ -31,6 +31,7 @@ pub enum Protocol {
     MeteoraDAMMv2,
     AxiomProgram1,
     AxiomProgram2,
+    RaydiumAmmV4,
 }
 
 impl Protocol {
@@ -46,6 +47,7 @@ impl Protocol {
             Protocol::MeteoraDAMMv2 => vec![METEORA_DAMM_V2_PROGRAM_ID],
             Protocol::AxiomProgram1 => vec![AXIOM_1_PROGRAM_ID],
             Protocol::AxiomProgram2 => vec![AXIOM_2_PROGRAM_ID],
+            Protocol::RaydiumAmmV4 => vec![RAYDIUM_AMM_V4_PROGRAM_ID],
         }
     }
 }
@@ -63,6 +65,7 @@ impl std::fmt::Display for Protocol {
             Protocol::MeteoraDAMMv2 => write!(f, "MeteoraDAMMv2"),
             Protocol::AxiomProgram1 => write!(f, "AxiomTradingProgram1"),
             Protocol::AxiomProgram2 => write!(f, "AxiomTradingProgram2"),
+            Protocol::RaydiumAmmV4 => write!(f, "RaydiumAmmV4"),
         }
     }
 }
@@ -77,6 +80,7 @@ impl std::str::FromStr for Protocol {
             "bonk" => Ok(Protocol::Bonk),
             "raydiumcpmm" => Ok(Protocol::RaydiumCpmm),
             "raydiumclmm" => Ok(Protocol::RaydiumClmm),
+            "raydiumammv4" => Ok(Protocol::RaydiumAmmV4),
             "photon" => Ok(Protocol::Phonton),
             "meteoradbc" => Ok(Protocol::MeteoraDBC),
             "meteoradammv2" => Ok(Protocol::MeteoraDAMMv2),
@@ -100,6 +104,7 @@ static EVENT_PARSERS: LazyLock<HashMap<Protocol, Arc<dyn EventParser>>> = LazyLo
     parsers.insert(Protocol::MeteoraDAMMv2, Arc::new(MeteoraDAMMv2EventParser::new()));
     parsers.insert(Protocol::AxiomProgram1, Arc::new(AxiomEventParser::new()));
     parsers.insert(Protocol::AxiomProgram2, Arc::new(Axiom2EventParser::new()));
+    parsers.insert(Protocol::RaydiumAmmV4, Arc::new(RaydiumAmmV4EventParser::new()));
     parsers
 });
 

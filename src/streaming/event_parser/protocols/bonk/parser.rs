@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use prost_types::Timestamp;
 use solana_sdk::{instruction::CompiledInstruction, pubkey::Pubkey};
 use solana_transaction_status::UiCompiledInstruction;
@@ -32,6 +34,8 @@ impl BonkEventParser {
         // Configure all event types
         let configs = vec![
             GenericEventParseConfig {
+                program_id: BONK_PROGRAM_ID,
+                protocol_type: ProtocolType::Bonk,
                 inner_instruction_discriminator: discriminators::TRADE_EVENT,
                 instruction_discriminator: discriminators::BUY_EXACT_IN,
                 event_type: EventType::BonkBuyExactIn,
@@ -39,6 +43,8 @@ impl BonkEventParser {
                 instruction_parser: Self::parse_buy_exact_in_instruction,
             },
             GenericEventParseConfig {
+                program_id: BONK_PROGRAM_ID,
+                protocol_type: ProtocolType::Bonk,
                 inner_instruction_discriminator: discriminators::TRADE_EVENT,
                 instruction_discriminator: discriminators::BUY_EXACT_OUT,
                 event_type: EventType::BonkBuyExactOut,
@@ -46,6 +52,8 @@ impl BonkEventParser {
                 instruction_parser: Self::parse_buy_exact_out_instruction,
             },
             GenericEventParseConfig {
+                program_id: BONK_PROGRAM_ID,
+                protocol_type: ProtocolType::Bonk,
                 inner_instruction_discriminator: discriminators::TRADE_EVENT,
                 instruction_discriminator: discriminators::SELL_EXACT_IN,
                 event_type: EventType::BonkSellExactIn,
@@ -53,6 +61,8 @@ impl BonkEventParser {
                 instruction_parser: Self::parse_sell_exact_in_instruction,
             },
             GenericEventParseConfig {
+                program_id: BONK_PROGRAM_ID,
+                protocol_type: ProtocolType::Bonk,
                 inner_instruction_discriminator: discriminators::TRADE_EVENT,
                 instruction_discriminator: discriminators::SELL_EXACT_OUT,
                 event_type: EventType::BonkSellExactOut,
@@ -60,6 +70,8 @@ impl BonkEventParser {
                 instruction_parser: Self::parse_sell_exact_out_instruction,
             },
             GenericEventParseConfig {
+                program_id: BONK_PROGRAM_ID,
+                protocol_type: ProtocolType::Bonk,
                 inner_instruction_discriminator: discriminators::POOL_CREATE_EVENT,
                 instruction_discriminator: discriminators::INITIALIZE,
                 event_type: EventType::BonkInitialize,
@@ -67,6 +79,8 @@ impl BonkEventParser {
                 instruction_parser: Self::parse_initialize_instruction,
             },
             GenericEventParseConfig {
+                program_id: BONK_PROGRAM_ID,
+                protocol_type: ProtocolType::Bonk,
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::MIGRATE_TO_AMM,
                 event_type: EventType::BonkMigrateToAmm,
@@ -74,6 +88,8 @@ impl BonkEventParser {
                 instruction_parser: Self::parse_migrate_to_amm_instruction,
             },
             GenericEventParseConfig {
+                program_id: BONK_PROGRAM_ID,
+                protocol_type: ProtocolType::Bonk,
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::MIGRATE_TO_CP_SWAP,
                 event_type: EventType::BonkMigrateToCpswap,
@@ -82,7 +98,7 @@ impl BonkEventParser {
             },
         ];
 
-        let inner = GenericEventParser::new(BONK_PROGRAM_ID, ProtocolType::Bonk, configs);
+        let inner = GenericEventParser::new(vec![BONK_PROGRAM_ID], configs);
 
         Self { inner }
     }
@@ -526,6 +542,12 @@ impl BonkEventParser {
 
 #[async_trait::async_trait]
 impl EventParser for BonkEventParser {
+    fn inner_instruction_configs(&self) -> HashMap<&'static str, Vec<GenericEventParseConfig>> {
+        self.inner.inner_instruction_configs()
+    }
+    fn instruction_configs(&self) -> HashMap<Vec<u8>, Vec<GenericEventParseConfig>> {
+        self.inner.instruction_configs()
+    }
     fn parse_events_from_inner_instruction(
         &self,
         inner_instruction: &UiCompiledInstruction,
