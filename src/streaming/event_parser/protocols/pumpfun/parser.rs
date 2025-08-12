@@ -83,7 +83,14 @@ impl PumpFunEventParser {
         data: &[u8],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        if let Ok(event) = borsh::from_slice::<PumpFunTradeEvent>(data) {
+
+        let usefuldata = if (data.len()>250) {
+            data[..250].to_vec() 
+        } else {
+            data.to_vec()
+        }; // 只截取部分字节，防止pump日后再加字段。
+
+        if let Ok(event) = borsh::from_slice::<PumpFunTradeEvent>(&usefuldata[..]) {
             let mut metadata = metadata;
             metadata.set_id(format!(
                 "{}-{}-{}-{}",
