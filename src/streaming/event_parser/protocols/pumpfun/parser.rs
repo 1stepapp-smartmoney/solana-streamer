@@ -148,7 +148,7 @@ impl PumpFunEventParser {
         offset += name_len;
         let symbol_len = u32::from_le_bytes(data[offset..offset + 4].try_into().unwrap()) as usize;
         offset += 4;
-        if offset + name_len > data.len() {
+        if offset + symbol_len > data.len() {
             return None; // 防止越界
         }
         let symbol = String::from_utf8_lossy(&data[offset..offset + symbol_len]);
