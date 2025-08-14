@@ -43,8 +43,8 @@ impl RaydiumClmmEventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::SWAP,
                 event_type: EventType::RaydiumClmmSwap,
-                inner_instruction_parser: Self::empty_parse,
-                instruction_parser: Self::parse_swap_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_swap_instruction),
             },
             GenericEventParseConfig {
                 program_id: RAYDIUM_CLMM_PROGRAM_ID,
@@ -52,8 +52,8 @@ impl RaydiumClmmEventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::SWAP_V2,
                 event_type: EventType::RaydiumClmmSwapV2,
-                inner_instruction_parser: Self::empty_parse,
-                instruction_parser: Self::parse_swap_v2_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_swap_v2_instruction),
             },
             GenericEventParseConfig {
                 program_id: RAYDIUM_CLMM_PROGRAM_ID,
@@ -61,8 +61,8 @@ impl RaydiumClmmEventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::CLOSE_POSITION,
                 event_type: EventType::RaydiumClmmClosePosition,
-                inner_instruction_parser: Self::empty_parse,
-                instruction_parser: Self::parse_close_position_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_close_position_instruction),
             },
             GenericEventParseConfig {
                 program_id: RAYDIUM_CLMM_PROGRAM_ID,
@@ -70,8 +70,8 @@ impl RaydiumClmmEventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::DECREASE_LIQUIDITY_V2,
                 event_type: EventType::RaydiumClmmDecreaseLiquidityV2,
-                inner_instruction_parser: Self::empty_parse,
-                instruction_parser: Self::parse_decrease_liquidity_v2_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_decrease_liquidity_v2_instruction),
             },
             GenericEventParseConfig {
                 program_id: RAYDIUM_CLMM_PROGRAM_ID,
@@ -79,8 +79,8 @@ impl RaydiumClmmEventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::CREATE_POOL,
                 event_type: EventType::RaydiumClmmCreatePool,
-                inner_instruction_parser: Self::empty_parse,
-                instruction_parser: Self::parse_create_pool_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_create_pool_instruction),
             },
             GenericEventParseConfig {
                 program_id: RAYDIUM_CLMM_PROGRAM_ID,
@@ -88,8 +88,8 @@ impl RaydiumClmmEventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::INCREASE_LIQUIDITY_V2,
                 event_type: EventType::RaydiumClmmIncreaseLiquidityV2,
-                inner_instruction_parser: Self::empty_parse,
-                instruction_parser: Self::parse_increase_liquidity_v2_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_increase_liquidity_v2_instruction),
             },
             GenericEventParseConfig {
                 program_id: RAYDIUM_CLMM_PROGRAM_ID,
@@ -97,8 +97,8 @@ impl RaydiumClmmEventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::OPEN_POSITION_WITH_TOKEN_22_NFT,
                 event_type: EventType::RaydiumClmmOpenPositionWithToken22Nft,
-                inner_instruction_parser: Self::empty_parse,
-                instruction_parser: Self::parse_open_position_with_token_22_nft_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_open_position_with_token_22_nft_instruction),
             },
             GenericEventParseConfig {
                 program_id: RAYDIUM_CLMM_PROGRAM_ID,
@@ -106,18 +106,14 @@ impl RaydiumClmmEventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::OPEN_POSITION_V2,
                 event_type: EventType::RaydiumClmmOpenPositionV2,
-                inner_instruction_parser: Self::empty_parse,
-                instruction_parser: Self::parse_open_position_v2_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_open_position_v2_instruction),
             },
         ];
 
         let inner = GenericEventParser::new(vec![RAYDIUM_CLMM_PROGRAM_ID], configs);
 
         Self { inner }
-    }
-
-    fn empty_parse(_data: &[u8], _metadata: EventMetadata) -> Option<Box<dyn UnifiedEvent>> {
-        None
     }
 
     /// 解析打开仓位V2指令事件

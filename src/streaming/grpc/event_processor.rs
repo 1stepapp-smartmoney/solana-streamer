@@ -7,6 +7,7 @@ use crate::common::AnyResult;
 use crate::streaming::common::{
     EventBatchProcessor as EventBatchCollector, MetricsManager, StreamClientConfig as ClientConfig,
 };
+use crate::streaming::event_parser::core::account_event_parser::AccountEventParser;
 use crate::streaming::event_parser::core::common_event_parser::CommonEventParser;
 use crate::streaming::event_parser::EventParser;
 use crate::streaming::event_parser::{
@@ -37,7 +38,28 @@ impl EventProcessor {
         F: Fn(Box<dyn UnifiedEvent>) + Send + Sync,
     {
         match event_pretty {
+            EventPretty::Account(account_pretty) => {
+                self.metrics_manager.add_process_count().await;
+                let start_time = std::time::Instant::now();
+                let program_received_time_ms = chrono::Utc::now().timestamp_millis();
+                let account_event = AccountEventParser::parse_account_event(
+                    protocols.clone(),
+                    account_pretty,
+                    program_received_time_ms,
+                );
+                if let Some(event) = account_event {
+                    callback(event);
+                    // 更新性能指标
+                    let processing_time = start_time.elapsed();
+                    let processing_time_ms = processing_time.as_millis() as f64;
+                    // 更新性能指标（如果启用）
+                    self.metrics_manager.update_metrics(1, processing_time_ms).await;
+                    // 记录慢处理操作
+                    self.metrics_manager.log_slow_processing(processing_time_ms, 1);
+                }
+            }
             EventPretty::Transaction(transaction_pretty) => {
+                self.metrics_manager.add_process_count().await;
                 let start_time = std::time::Instant::now();
                 let program_received_time_ms = chrono::Utc::now().timestamp_millis();
                 let slot = transaction_pretty.slot;
@@ -76,16 +98,13 @@ impl EventProcessor {
                 let processing_time_ms = processing_time.as_millis() as f64;
 
                 // 更新性能指标（如果启用）
-                if self.config.enable_metrics {
-                    self.metrics_manager
-                        .update_metrics(event_count as u64, processing_time_ms)
-                        .await;
-                }
-
+                self.metrics_manager.update_metrics(event_count as u64, processing_time_ms).await;
                 // 记录慢处理操作
                 self.metrics_manager.log_slow_processing(processing_time_ms, event_count);
             }
             EventPretty::BlockMeta(block_meta_pretty) => {
+                let start_time = std::time::Instant::now();
+                self.metrics_manager.add_process_count().await;
                 let block_time_ms = block_meta_pretty
                     .block_time
                     .map(|ts| ts.seconds * 1000 + ts.nanos as i64 / 1_000_000)
@@ -96,6 +115,13 @@ impl EventProcessor {
                     block_time_ms,
                 );
                 callback(block_meta_event);
+                // 更新性能指标
+                let processing_time = start_time.elapsed();
+                let processing_time_ms = processing_time.as_millis() as f64;
+                // 更新性能指标（如果启用）
+                self.metrics_manager.update_metrics(1, processing_time_ms).await;
+                // 记录慢处理操作
+                self.metrics_manager.log_slow_processing(processing_time_ms, 1);
             }
         }
 
@@ -114,7 +140,28 @@ impl EventProcessor {
         F: Fn(Vec<Box<dyn UnifiedEvent>>) + Send + Sync + 'static,
     {
         match event_pretty {
+            EventPretty::Account(account_pretty) => {
+                self.metrics_manager.add_process_count().await;
+                let start_time = std::time::Instant::now();
+                let program_received_time_ms = chrono::Utc::now().timestamp_millis();
+                let account_event = AccountEventParser::parse_account_event(
+                    protocols.clone(),
+                    account_pretty,
+                    program_received_time_ms,
+                );
+                if let Some(event) = account_event {
+                    (batch_processor.callback)(vec![event]);
+                    // 更新性能指标
+                    let processing_time = start_time.elapsed();
+                    let processing_time_ms = processing_time.as_millis() as f64;
+                    // 实际调用性能指标更新
+                    self.metrics_manager.update_metrics(1, processing_time_ms).await;
+                    // 记录慢处理操作
+                    self.metrics_manager.log_slow_processing(processing_time_ms, 1);
+                }
+            }
             EventPretty::Transaction(transaction_pretty) => {
+                self.metrics_manager.add_process_count().await;
                 let start_time = std::time::Instant::now();
                 let program_received_time_ms = chrono::Utc::now().timestamp_millis();
                 let slot = transaction_pretty.slot;
@@ -142,8 +189,8 @@ impl EventProcessor {
                     Ok(events) => {
                         let event_count = events.len();
                         if !events.is_empty() {
-                            log::info!("Parsed {} events", event_count);
-                            log::info!("Adding {} events to batch processor", event_count);
+                            log::debug!("Parsed {} events", event_count);
+                            log::debug!("Adding {} events to batch processor", event_count);
                             for event in events {
                                 if self.config.batch.enabled {
                                     batch_processor.add_event(event);
@@ -165,7 +212,7 @@ impl EventProcessor {
 
                 // 添加调试信息
                 if total_events > 0 {
-                    log::info!(
+                    log::debug!(
                         "Total events parsed: {} for transaction {}",
                         total_events,
                         signature
@@ -183,6 +230,7 @@ impl EventProcessor {
                 self.metrics_manager.log_slow_processing(processing_time_ms, total_events);
             }
             EventPretty::BlockMeta(block_meta_pretty) => {
+                let start_time = std::time::Instant::now();
                 let block_time_ms = block_meta_pretty
                     .block_time
                     .map(|ts| ts.seconds * 1000 + ts.nanos as i64 / 1_000_000)
@@ -193,6 +241,13 @@ impl EventProcessor {
                     block_time_ms,
                 );
                 (batch_processor.callback)(vec![block_meta_event]);
+                // 更新性能指标
+                let processing_time = start_time.elapsed();
+                let processing_time_ms = processing_time.as_millis() as f64;
+                // 更新性能指标（如果启用）
+                self.metrics_manager.update_metrics(1, processing_time_ms).await;
+                // 记录慢处理操作
+                self.metrics_manager.log_slow_processing(processing_time_ms, 1);
             }
         }
 

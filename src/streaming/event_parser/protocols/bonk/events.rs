@@ -3,6 +3,7 @@ use crate::streaming::event_parser::common::EventMetadata;
 use crate::streaming::event_parser::protocols::bonk::types::{
     CurveParams, MintParams, PoolStatus, TradeDirection, VestingParams,
 };
+use crate::streaming::event_parser::protocols::bonk::{GlobalConfig, PlatformConfig, PoolState};
 use borsh::BorshDeserialize;
 use serde::{Deserialize, Serialize};
 use solana_sdk::pubkey::Pubkey;
@@ -231,6 +232,45 @@ pub struct BonkMigrateToCpswapEvent {
 // Macro to generate UnifiedEvent implementation, specifying the fields to be merged
 impl_unified_event!(BonkMigrateToCpswapEvent,);
 
+/// 池状态
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BonkPoolStateAccountEvent {
+    pub metadata: EventMetadata,
+    pub pubkey: String,
+    pub executable: bool,
+    pub lamports: u64,
+    pub owner: String,
+    pub rent_epoch: u64,
+    pub pool_state: PoolState,
+}
+impl_unified_event!(BonkPoolStateAccountEvent,);
+
+/// 全局配置
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BonkGlobalConfigAccountEvent {
+    pub metadata: EventMetadata,
+    pub pubkey: String,
+    pub executable: bool,
+    pub lamports: u64,
+    pub owner: String,
+    pub rent_epoch: u64,
+    pub global_config: GlobalConfig,
+}
+impl_unified_event!(BonkGlobalConfigAccountEvent,);
+
+/// 平台配置
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BonkPlatformConfigAccountEvent {
+    pub metadata: EventMetadata,
+    pub pubkey: String,
+    pub executable: bool,
+    pub lamports: u64,
+    pub owner: String,
+    pub rent_epoch: u64,
+    pub platform_config: PlatformConfig,
+}
+impl_unified_event!(BonkPlatformConfigAccountEvent,);
+
 /// Event discriminator constants
 pub mod discriminators {
     // Event discriminators
@@ -245,4 +285,9 @@ pub mod discriminators {
     pub const INITIALIZE: &[u8] = &[175, 175, 109, 31, 13, 152, 155, 237];
     pub const MIGRATE_TO_AMM: &[u8] = &[207, 82, 192, 145, 254, 207, 145, 223];
     pub const MIGRATE_TO_CP_SWAP: &[u8] = &[136, 92, 200, 103, 28, 218, 144, 140];
+
+    // 账户鉴别器
+    pub const POOL_STATE_ACCOUNT: &[u8] = &[247, 237, 227, 245, 215, 195, 222, 70];
+    pub const GLOBAL_CONFIG_ACCOUNT: &[u8] = &[149, 8, 156, 202, 160, 252, 176, 217];
+    pub const PLATFORM_CONFIG_ACCOUNT: &[u8] = &[160, 78, 128, 0, 248, 83, 230, 160];
 }

@@ -39,8 +39,8 @@ impl BonkEventParser {
                 inner_instruction_discriminator: discriminators::TRADE_EVENT,
                 instruction_discriminator: discriminators::BUY_EXACT_IN,
                 event_type: EventType::BonkBuyExactIn,
-                inner_instruction_parser: Self::parse_trade_inner_instruction,
-                instruction_parser: Self::parse_buy_exact_in_instruction,
+                inner_instruction_parser: Some(Self::parse_trade_inner_instruction),
+                instruction_parser: Some(Self::parse_buy_exact_in_instruction),
             },
             GenericEventParseConfig {
                 program_id: BONK_PROGRAM_ID,
@@ -48,8 +48,8 @@ impl BonkEventParser {
                 inner_instruction_discriminator: discriminators::TRADE_EVENT,
                 instruction_discriminator: discriminators::BUY_EXACT_OUT,
                 event_type: EventType::BonkBuyExactOut,
-                inner_instruction_parser: Self::parse_trade_inner_instruction,
-                instruction_parser: Self::parse_buy_exact_out_instruction,
+                inner_instruction_parser: Some(Self::parse_trade_inner_instruction),
+                instruction_parser: Some(Self::parse_buy_exact_out_instruction),
             },
             GenericEventParseConfig {
                 program_id: BONK_PROGRAM_ID,
@@ -57,8 +57,8 @@ impl BonkEventParser {
                 inner_instruction_discriminator: discriminators::TRADE_EVENT,
                 instruction_discriminator: discriminators::SELL_EXACT_IN,
                 event_type: EventType::BonkSellExactIn,
-                inner_instruction_parser: Self::parse_trade_inner_instruction,
-                instruction_parser: Self::parse_sell_exact_in_instruction,
+                inner_instruction_parser: Some(Self::parse_trade_inner_instruction),
+                instruction_parser: Some(Self::parse_sell_exact_in_instruction),
             },
             GenericEventParseConfig {
                 program_id: BONK_PROGRAM_ID,
@@ -66,8 +66,8 @@ impl BonkEventParser {
                 inner_instruction_discriminator: discriminators::TRADE_EVENT,
                 instruction_discriminator: discriminators::SELL_EXACT_OUT,
                 event_type: EventType::BonkSellExactOut,
-                inner_instruction_parser: Self::parse_trade_inner_instruction,
-                instruction_parser: Self::parse_sell_exact_out_instruction,
+                inner_instruction_parser: Some(Self::parse_trade_inner_instruction),
+                instruction_parser: Some(Self::parse_sell_exact_out_instruction),
             },
             GenericEventParseConfig {
                 program_id: BONK_PROGRAM_ID,
@@ -75,8 +75,8 @@ impl BonkEventParser {
                 inner_instruction_discriminator: discriminators::POOL_CREATE_EVENT,
                 instruction_discriminator: discriminators::INITIALIZE,
                 event_type: EventType::BonkInitialize,
-                inner_instruction_parser: Self::parse_pool_create_inner_instruction,
-                instruction_parser: Self::parse_initialize_instruction,
+                inner_instruction_parser: Some(Self::parse_pool_create_inner_instruction),
+                instruction_parser: Some(Self::parse_initialize_instruction),
             },
             GenericEventParseConfig {
                 program_id: BONK_PROGRAM_ID,
@@ -84,8 +84,8 @@ impl BonkEventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::MIGRATE_TO_AMM,
                 event_type: EventType::BonkMigrateToAmm,
-                inner_instruction_parser: Self::parse_migrate_to_amm_inner_instruction,
-                instruction_parser: Self::parse_migrate_to_amm_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_migrate_to_amm_instruction),
             },
             GenericEventParseConfig {
                 program_id: BONK_PROGRAM_ID,
@@ -93,8 +93,8 @@ impl BonkEventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::MIGRATE_TO_CP_SWAP,
                 event_type: EventType::BonkMigrateToCpswap,
-                inner_instruction_parser: Self::parse_migrate_to_cpswap_inner_instruction,
-                instruction_parser: Self::parse_migrate_to_cpswap_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_migrate_to_cpswap_instruction),
             },
         ];
 
@@ -115,22 +115,6 @@ impl BonkEventParser {
         } else {
             None
         }
-    }
-
-    /// Parse migrate to AMM event
-    fn parse_migrate_to_amm_inner_instruction(
-        _data: &[u8],
-        _metadata: EventMetadata,
-    ) -> Option<Box<dyn UnifiedEvent>> {
-        None
-    }
-
-    /// Parse migrate to CP Swap event
-    fn parse_migrate_to_cpswap_inner_instruction(
-        _data: &[u8],
-        _metadata: EventMetadata,
-    ) -> Option<Box<dyn UnifiedEvent>> {
-        None
     }
 
     /// Parse trade event

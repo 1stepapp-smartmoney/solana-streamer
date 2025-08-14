@@ -17,15 +17,17 @@
    - **Raydium AMM V4**: Raydium 自动做市商 V4 事件
 5. **统一事件接口**: 在所有支持的协议中保持一致的事件处理
 6. **事件解析系统**: 自动解析和分类协议特定事件
-7. **高性能**: 针对低延迟事件处理进行优化
-8. **批处理优化**: 批量处理事件以减少回调开销
-9. **性能监控**: 内置性能指标监控，包括事件处理速度等
-10. **内存优化**: 对象池和缓存机制减少内存分配
-11. **灵活配置系统**: 支持自定义批处理大小、背压策略、通道大小等参数
-12. **预设配置**: 提供高性能、低延迟、有序处理等预设配置
-13. **背压处理**: 支持阻塞、丢弃、重试、有序等多种背压策略
-14. **运行时配置更新**: 支持在运行时动态更新配置参数
-15. **全函数性能监控**: 所有subscribe_events函数都支持性能监控，自动收集和报告性能指标
+7. **账户状态监控**: 实时监控协议账户状态和配置变更
+8. **交易与账户事件过滤**: 分别过滤交易事件和账户状态变化
+9. **高性能**: 针对低延迟事件处理进行优化
+10. **批处理优化**: 批量处理事件以减少回调开销
+11. **性能监控**: 内置性能指标监控，包括事件处理速度等
+12. **内存优化**: 对象池和缓存机制减少内存分配
+13. **灵活配置系统**: 支持自定义批处理大小、背压策略、通道大小等参数
+14. **预设配置**: 提供高性能、低延迟、有序处理等预设配置
+15. **背压处理**: 支持阻塞、丢弃、重试、有序等多种背压策略
+16. **运行时配置更新**: 支持在运行时动态更新配置参数
+17. **全函数性能监控**: 所有subscribe_events函数都支持性能监控，自动收集和报告性能指标
 
 ## 安装
 
@@ -42,14 +44,14 @@ git clone https://github.com/0xfnzero/solana-streamer
 
 ```toml
 # 添加到您的 Cargo.toml
-solana-streamer-sdk = { path = "./solana-streamer", version = "0.2.4" }
+solana-streamer-sdk = { path = "./solana-streamer", version = "0.3.1" }
 ```
 
 ### 使用 crates.io
 
 ```toml
 # 添加到您的 Cargo.toml
-solana-streamer-sdk = "0.2.4"
+solana-streamer-sdk = "0.3.1"
 ```
 
 ## 使用示例
@@ -78,31 +80,38 @@ use solana_streamer_sdk::{
         event_parser::{
             protocols::{
                 bonk::{
-                    parser::BONK_PROGRAM_ID, BonkMigrateToAmmEvent, BonkMigrateToCpswapEvent,
-                    BonkPoolCreateEvent, BonkTradeEvent,
+                    parser::BONK_PROGRAM_ID, BonkGlobalConfigAccountEvent, BonkMigrateToAmmEvent,
+                    BonkMigrateToCpswapEvent, BonkPlatformConfigAccountEvent, BonkPoolCreateEvent,
+                    BonkPoolStateAccountEvent, BonkTradeEvent,
                 },
                 pumpfun::{
-                    parser::PUMPFUN_PROGRAM_ID, PumpFunCreateTokenEvent, PumpFunMigrateEvent,
+                    parser::PUMPFUN_PROGRAM_ID, PumpFunBondingCurveAccountEvent,
+                    PumpFunCreateTokenEvent, PumpFunGlobalAccountEvent, PumpFunMigrateEvent,
                     PumpFunTradeEvent,
                 },
                 pumpswap::{
                     parser::PUMPSWAP_PROGRAM_ID, PumpSwapBuyEvent, PumpSwapCreatePoolEvent,
-                    PumpSwapDepositEvent, PumpSwapSellEvent, PumpSwapWithdrawEvent,
+                    PumpSwapDepositEvent, PumpSwapGlobalConfigAccountEvent,
+                    PumpSwapPoolAccountEvent, PumpSwapSellEvent, PumpSwapWithdrawEvent,
                 },
                 raydium_amm_v4::{
+                    parser::RAYDIUM_AMM_V4_PROGRAM_ID, RaydiumAmmV4AmmInfoAccountEvent,
                     RaydiumAmmV4DepositEvent, RaydiumAmmV4Initialize2Event, RaydiumAmmV4SwapEvent,
                     RaydiumAmmV4WithdrawEvent, RaydiumAmmV4WithdrawPnlEvent,
                 },
                 raydium_clmm::{
-                    parser::RAYDIUM_CLMM_PROGRAM_ID, RaydiumClmmClosePositionEvent,
-                    RaydiumClmmCreatePoolEvent, RaydiumClmmDecreaseLiquidityV2Event,
-                    RaydiumClmmIncreaseLiquidityV2Event, RaydiumClmmOpenPositionV2Event,
-                    RaydiumClmmOpenPositionWithToken22NftEvent, RaydiumClmmSwapEvent,
-                    RaydiumClmmSwapV2Event,
+                    parser::RAYDIUM_CLMM_PROGRAM_ID, RaydiumClmmAmmConfigAccountEvent,
+                    RaydiumClmmClosePositionEvent, RaydiumClmmCreatePoolEvent,
+                    RaydiumClmmDecreaseLiquidityV2Event, RaydiumClmmIncreaseLiquidityV2Event,
+                    RaydiumClmmOpenPositionV2Event, RaydiumClmmOpenPositionWithToken22NftEvent,
+                    RaydiumClmmPoolStateAccountEvent, RaydiumClmmSwapEvent, RaydiumClmmSwapV2Event,
+                    RaydiumClmmTickArrayStateAccountEvent,
                 },
                 raydium_cpmm::{
-                    parser::RAYDIUM_CPMM_PROGRAM_ID, RaydiumCpmmDepositEvent,
-                    RaydiumCpmmInitializeEvent, RaydiumCpmmSwapEvent, RaydiumCpmmWithdrawEvent,
+                    parser::RAYDIUM_CPMM_PROGRAM_ID, RaydiumCpmmAmmConfigAccountEvent,
+                    RaydiumCpmmDepositEvent, RaydiumCpmmInitializeEvent,
+                    RaydiumCpmmPoolStateAccountEvent, RaydiumCpmmSwapEvent,
+                    RaydiumCpmmWithdrawEvent,
                 },
                 BlockMetaEvent,
             },
@@ -110,6 +119,7 @@ use solana_streamer_sdk::{
         },
         grpc::ClientConfig,
         shred_stream::ShredClientConfig,
+        yellowstone_grpc::{AccountFilter, TransactionFilter},
         ShredStreamGrpc, YellowstoneGrpc,
     },
 };
@@ -146,17 +156,19 @@ async fn test_grpc() -> Result<(), Box<dyn std::error::Error>> {
         Protocol::Bonk,
         Protocol::RaydiumCpmm,
         Protocol::RaydiumClmm,
+        Protocol::RaydiumAmmV4,
     ];
 
     println!("Protocols to monitor: {:?}", protocols);
 
     // 过滤账号
     let account_include = vec![
-        PUMPFUN_PROGRAM_ID.to_string(),      // 监听 pumpfun 程序ID
-        PUMPSWAP_PROGRAM_ID.to_string(),     // 监听 pumpswap 程序ID
-        BONK_PROGRAM_ID.to_string(),         // 监听 bonk 程序ID
-        RAYDIUM_CPMM_PROGRAM_ID.to_string(), // 监听 raydium_cpmm 程序ID
-        RAYDIUM_CLMM_PROGRAM_ID.to_string(), // 监听 raydium_clmm 程序ID
+        PUMPFUN_PROGRAM_ID.to_string(),        // 监听 pumpfun 程序ID
+        PUMPSWAP_PROGRAM_ID.to_string(),       // 监听 pumpswap 程序ID
+        BONK_PROGRAM_ID.to_string(),           // 监听 bonk 程序ID
+        RAYDIUM_CPMM_PROGRAM_ID.to_string(),   // 监听 raydium_cpmm 程序ID
+        RAYDIUM_CLMM_PROGRAM_ID.to_string(),   // 监听 raydium_clmm 程序ID
+        RAYDIUM_AMM_V4_PROGRAM_ID.to_string(), // 监听 raydium_amm_v4 程序ID
     ];
     let account_exclude = vec![];
     let account_required = vec![];
@@ -166,12 +178,21 @@ async fn test_grpc() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Starting subscription...");
 
+    // 监听交易数据
+    let transaction_filter = TransactionFilter {
+        account_include: account_include.clone(),
+        account_exclude,
+        account_required,
+    };
+
+    // 监听属于owner程序的账号数据 -> 账号事件监听
+    let account_filter = AccountFilter { account: vec![], owner: account_include.clone() };
+
     grpc.subscribe_events_immediate(
         protocols,
         None,
-        account_include,
-        account_exclude,
-        account_required,
+        transaction_filter,
+        account_filter,
         None,
         callback,
     )
@@ -308,6 +329,46 @@ fn create_event_callback() -> impl Fn(Box<dyn UnifiedEvent>) {
             },
             RaydiumAmmV4WithdrawPnlEvent => |e: RaydiumAmmV4WithdrawPnlEvent| {
                 println!("RaydiumAmmV4WithdrawPnlEvent: {e:?}");
+            },
+            // -------------------------- account -----------------------
+            BonkPoolStateAccountEvent => |e: BonkPoolStateAccountEvent| {
+                println!("BonkPoolStateAccountEvent: {e:?}");
+            },
+            BonkGlobalConfigAccountEvent => |e: BonkGlobalConfigAccountEvent| {
+                println!("BonkGlobalConfigAccountEvent: {e:?}");
+            },
+            BonkPlatformConfigAccountEvent => |e: BonkPlatformConfigAccountEvent| {
+                println!("BonkPlatformConfigAccountEvent: {e:?}");
+            },
+            PumpSwapGlobalConfigAccountEvent => |e: PumpSwapGlobalConfigAccountEvent| {
+                println!("PumpSwapGlobalConfigAccountEvent: {e:?}");
+            },
+            PumpSwapPoolAccountEvent => |e: PumpSwapPoolAccountEvent| {
+                println!("PumpSwapPoolAccountEvent: {e:?}");
+            },
+            PumpFunBondingCurveAccountEvent => |e: PumpFunBondingCurveAccountEvent| {
+                println!("PumpFunBondingCurveAccountEvent: {e:?}");
+            },
+            PumpFunGlobalAccountEvent => |e: PumpFunGlobalAccountEvent| {
+                println!("PumpFunGlobalAccountEvent: {e:?}");
+            },
+            RaydiumAmmV4AmmInfoAccountEvent => |e: RaydiumAmmV4AmmInfoAccountEvent| {
+                println!("RaydiumAmmV4AmmInfoAccountEvent: {e:?}");
+            },
+            RaydiumClmmAmmConfigAccountEvent => |e: RaydiumClmmAmmConfigAccountEvent| {
+                println!("RaydiumClmmAmmConfigAccountEvent: {e:?}");
+            },
+            RaydiumClmmPoolStateAccountEvent => |e: RaydiumClmmPoolStateAccountEvent| {
+                println!("RaydiumClmmPoolStateAccountEvent: {e:?}");
+            },
+            RaydiumClmmTickArrayStateAccountEvent => |e: RaydiumClmmTickArrayStateAccountEvent| {
+                println!("RaydiumClmmTickArrayStateAccountEvent: {e:?}");
+            },
+            RaydiumCpmmAmmConfigAccountEvent => |e: RaydiumCpmmAmmConfigAccountEvent| {
+                println!("RaydiumCpmmAmmConfigAccountEvent: {e:?}");
+            },
+            RaydiumCpmmPoolStateAccountEvent => |e: RaydiumCpmmPoolStateAccountEvent| {
+                println!("RaydiumCpmmPoolStateAccountEvent: {e:?}");
             },
         });
     }

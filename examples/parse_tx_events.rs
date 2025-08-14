@@ -27,7 +27,9 @@ async fn main() -> Result<()> {
     for signature in valid_signatures {
         println!("Starting transaction parsing: {}", signature);
         get_single_transaction_details(signature).await?;
-        println!("Transaction parsing completed: {}\n\n\n", signature);
+        println!("Transaction parsing completed: {}\n", signature);
+        println!("Visit link to compare data: \nhttps://solscan.io/tx/{}\n", signature);
+        println!("--------------------------------");
     }
 
     Ok(())

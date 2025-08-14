@@ -12,6 +12,19 @@ use crate::streaming::common::{
 use crate::streaming::event_parser::{Protocol, UnifiedEvent};
 use crate::streaming::grpc::{EventPretty, EventProcessor, StreamHandler, SubscriptionManager};
 
+/// 交易过滤器
+pub struct TransactionFilter {
+    pub account_include: Vec<String>,
+    pub account_exclude: Vec<String>,
+    pub account_required: Vec<String>,
+}
+
+/// 账户过滤器
+pub struct AccountFilter {
+    pub account: Vec<String>,
+    pub owner: Vec<String>,
+}
+
 #[derive(Clone)]
 pub struct YellowstoneGrpc {
     pub endpoint: String,
@@ -103,9 +116,8 @@ impl YellowstoneGrpc {
         &self,
         protocols: Vec<Protocol>,
         bot_wallet: Option<Pubkey>,
-        account_include: Vec<String>,
-        account_exclude: Vec<String>,
-        account_required: Vec<String>,
+        transaction_filter: TransactionFilter,
+        account_filter: AccountFilter,
         commitment: Option<CommitmentLevel>,
         callback: F,
     ) -> AnyResult<()>
@@ -117,22 +129,20 @@ impl YellowstoneGrpc {
             self.metrics_manager.start_auto_monitoring().await;
         }
 
-        // 验证订阅参数
-        self.subscription_manager.validate_subscription_params(
-            &account_include,
-            &account_exclude,
-            &account_required,
-        )?;
-
         let transactions = self.subscription_manager.get_subscribe_request_filter(
-            account_include,
-            account_exclude,
-            account_required,
+            transaction_filter.account_include,
+            transaction_filter.account_exclude,
+            transaction_filter.account_required,
         );
+        let accounts = self
+            .subscription_manager
+            .subscribe_with_account_request(account_filter.account, account_filter.owner);
 
         // 订阅事件
-        let (mut subscribe_tx, mut stream) =
-            self.subscription_manager.subscribe_with_request(transactions, commitment).await?;
+        let (mut subscribe_tx, mut stream) = self
+            .subscription_manager
+            .subscribe_with_request(transactions, accounts, commitment)
+            .await?;
 
         // 创建通道，使用配置中的通道大小
         let (mut tx, mut rx) = mpsc::channel::<EventPretty>(self.config.backpressure.channel_size);
@@ -190,9 +200,8 @@ impl YellowstoneGrpc {
         &self,
         protocols: Vec<Protocol>,
         bot_wallet: Option<Pubkey>,
-        account_include: Vec<String>,
-        account_exclude: Vec<String>,
-        account_required: Vec<String>,
+        transaction_filter: TransactionFilter,
+        account_filter: AccountFilter,
         commitment: Option<CommitmentLevel>,
         callback: F,
     ) -> AnyResult<()>
@@ -204,22 +213,20 @@ impl YellowstoneGrpc {
             self.metrics_manager.start_auto_monitoring().await;
         }
 
-        // 验证订阅参数
-        self.subscription_manager.validate_subscription_params(
-            &account_include,
-            &account_exclude,
-            &account_required,
-        )?;
-
         let transactions = self.subscription_manager.get_subscribe_request_filter(
-            account_include,
-            account_exclude,
-            account_required,
+            transaction_filter.account_include,
+            transaction_filter.account_exclude,
+            transaction_filter.account_required,
         );
+        let accounts = self
+            .subscription_manager
+            .subscribe_with_account_request(account_filter.account, account_filter.owner);
 
         // Subscribe to events
-        let (mut subscribe_tx, mut stream) =
-            self.subscription_manager.subscribe_with_request(transactions, commitment).await?;
+        let (mut subscribe_tx, mut stream) = self
+            .subscription_manager
+            .subscribe_with_request(transactions, accounts, commitment)
+            .await?;
 
         // Create channel
         let (mut tx, mut rx) = mpsc::channel::<EventPretty>(self.config.backpressure.channel_size);
@@ -286,33 +293,6 @@ impl YellowstoneGrpc {
 
         tokio::signal::ctrl_c().await?;
         Ok(())
-    }
-
-    /// 默认订阅方法 - 委托给即时处理模式
-    #[deprecated(since = "0.1.12", note = "Use subscribe_events_immediate instead")]
-    pub async fn subscribe_events_v2<F>(
-        &self,
-        protocols: Vec<Protocol>,
-        bot_wallet: Option<Pubkey>,
-        account_include: Vec<String>,
-        account_exclude: Vec<String>,
-        account_required: Vec<String>,
-        commitment: Option<CommitmentLevel>,
-        callback: F,
-    ) -> AnyResult<()>
-    where
-        F: Fn(Box<dyn UnifiedEvent>) + Send + Sync + 'static,
-    {
-        self.subscribe_events_immediate(
-            protocols,
-            bot_wallet,
-            account_include,
-            account_exclude,
-            account_required,
-            commitment,
-            callback,
-        )
-        .await
     }
 }
 

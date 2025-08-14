@@ -4,10 +4,11 @@ use std::{collections::HashMap, time::Duration};
 use tonic::{transport::channel::ClientTlsConfig, Status};
 use yellowstone_grpc_client::{GeyserGrpcClient, Interceptor};
 use yellowstone_grpc_proto::geyser::{
-    CommitmentLevel, SubscribeRequest, SubscribeRequestFilterBlocksMeta,
-    SubscribeRequestFilterTransactions, SubscribeUpdate,
+    CommitmentLevel, SubscribeRequest, SubscribeRequestFilterAccounts,
+    SubscribeRequestFilterBlocksMeta, SubscribeRequestFilterTransactions, SubscribeUpdate,
 };
 
+use super::types::AccountsFilterMap;
 use super::types::TransactionsFilterMap;
 use crate::common::AnyResult;
 use crate::streaming::common::StreamClientConfig as ClientConfig;
@@ -41,12 +42,14 @@ impl SubscriptionManager {
     pub async fn subscribe_with_request(
         &self,
         transactions: TransactionsFilterMap,
+        accounts: Option<AccountsFilterMap>,
         commitment: Option<CommitmentLevel>,
     ) -> AnyResult<(
         impl Sink<SubscribeRequest, Error = mpsc::SendError>,
         impl Stream<Item = Result<SubscribeUpdate, Status>>,
     )> {
         let subscribe_request = SubscribeRequest {
+            accounts: accounts.unwrap_or_default(),
             transactions,
             blocks_meta: hashmap! { "".to_owned() => SubscribeRequestFilterBlocksMeta {} },
             commitment: if let Some(commitment) = commitment {
@@ -56,10 +59,31 @@ impl SubscriptionManager {
             },
             ..Default::default()
         };
-
         let mut client = self.connect().await?;
         let (sink, stream) = client.subscribe_with_request(Some(subscribe_request)).await?;
         Ok((sink, stream))
+    }
+
+    /// 创建账户订阅请求并返回流
+    pub fn subscribe_with_account_request(
+        &self,
+        account: Vec<String>,
+        owner: Vec<String>,
+    ) -> Option<AccountsFilterMap> {
+        if account.len() == 0 && owner.len() == 0 {
+            return None;
+        }
+        let mut accounts = HashMap::new();
+        accounts.insert(
+            "".to_owned(),
+            SubscribeRequestFilterAccounts {
+                account: account,
+                owner: owner,
+                filters: vec![],
+                nonempty_txn_signature: None,
+            },
+        );
+        Some(accounts)
     }
 
     /// 生成订阅请求过滤器
@@ -82,21 +106,6 @@ impl SubscriptionManager {
             },
         );
         transactions
-    }
-
-    /// 验证订阅参数
-    pub fn validate_subscription_params(
-        &self,
-        account_include: &[String],
-        account_exclude: &[String],
-        account_required: &[String],
-    ) -> AnyResult<()> {
-        if account_include.is_empty() && account_exclude.is_empty() && account_required.is_empty() {
-            return Err(anyhow::anyhow!(
-                "account_include or account_exclude or account_required cannot be empty"
-            ));
-        }
-        Ok(())
     }
 
     /// 获取配置

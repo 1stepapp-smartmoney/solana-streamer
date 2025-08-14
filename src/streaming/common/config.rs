@@ -108,7 +108,7 @@ impl StreamClientConfig {
                 channel_size: 20000,
                 strategy: BackpressureStrategy::Drop,
             },
-            enable_metrics: true,
+            enable_metrics: false,
         }
     }
 

@@ -38,8 +38,8 @@ impl RaydiumCpmmEventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::SWAP_BASE_IN,
                 event_type: EventType::RaydiumCpmmSwapBaseInput,
-                inner_instruction_parser: Self::empty_parse,
-                instruction_parser: Self::parse_swap_base_input_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_swap_base_input_instruction),
             },
             GenericEventParseConfig {
                 program_id: RAYDIUM_CPMM_PROGRAM_ID,
@@ -47,8 +47,8 @@ impl RaydiumCpmmEventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::SWAP_BASE_OUT,
                 event_type: EventType::RaydiumCpmmSwapBaseOutput,
-                inner_instruction_parser: Self::empty_parse,
-                instruction_parser: Self::parse_swap_base_output_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_swap_base_output_instruction),
             },
             GenericEventParseConfig {
                 program_id: RAYDIUM_CPMM_PROGRAM_ID,
@@ -56,8 +56,8 @@ impl RaydiumCpmmEventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::DEPOSIT,
                 event_type: EventType::RaydiumCpmmDeposit,
-                inner_instruction_parser: Self::empty_parse,
-                instruction_parser: Self::parse_deposit_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_deposit_instruction),
             },
             GenericEventParseConfig {
                 program_id: RAYDIUM_CPMM_PROGRAM_ID,
@@ -65,8 +65,8 @@ impl RaydiumCpmmEventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::INITIALIZE,
                 event_type: EventType::RaydiumCpmmInitialize,
-                inner_instruction_parser: Self::empty_parse,
-                instruction_parser: Self::parse_initialize_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_initialize_instruction),
             },
             GenericEventParseConfig {
                 program_id: RAYDIUM_CPMM_PROGRAM_ID,
@@ -74,18 +74,14 @@ impl RaydiumCpmmEventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::WITHDRAW,
                 event_type: EventType::RaydiumCpmmWithdraw,
-                inner_instruction_parser: Self::empty_parse,
-                instruction_parser: Self::parse_withdraw_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_withdraw_instruction),
             },
         ];
 
         let inner = GenericEventParser::new(vec![RAYDIUM_CPMM_PROGRAM_ID], configs);
 
         Self { inner }
-    }
-
-    fn empty_parse(_data: &[u8], _metadata: EventMetadata) -> Option<Box<dyn UnifiedEvent>> {
-        None
     }
 
     /// 解析提款指令事件

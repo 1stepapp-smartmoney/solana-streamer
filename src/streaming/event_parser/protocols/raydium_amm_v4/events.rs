@@ -1,5 +1,7 @@
-use crate::impl_unified_event;
 use crate::streaming::event_parser::common::EventMetadata;
+use crate::{
+    impl_unified_event, streaming::event_parser::protocols::raydium_amm_v4::types::AmmInfo,
+};
 use borsh::BorshDeserialize;
 use serde::{Deserialize, Serialize};
 use solana_sdk::pubkey::Pubkey;
@@ -151,6 +153,19 @@ pub struct RaydiumAmmV4WithdrawPnlEvent {
 }
 impl_unified_event!(RaydiumAmmV4WithdrawPnlEvent,);
 
+/// 池信息
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
+pub struct RaydiumAmmV4AmmInfoAccountEvent {
+    pub metadata: EventMetadata,
+    pub pubkey: String,
+    pub executable: bool,
+    pub lamports: u64,
+    pub owner: String,
+    pub rent_epoch: u64,
+    pub amm_info: AmmInfo,
+}
+impl_unified_event!(RaydiumAmmV4AmmInfoAccountEvent,);
+
 /// 事件鉴别器常量
 pub mod discriminators {
     // 指令鉴别器
@@ -160,4 +175,7 @@ pub mod discriminators {
     pub const INITIALIZE2: &[u8] = &[01];
     pub const WITHDRAW: &[u8] = &[04];
     pub const WITHDRAW_PNL: &[u8] = &[07];
+
+    /// 池信息鉴别器
+    pub const AMM_INFO: &[u8] = &[6];
 }

@@ -4,6 +4,7 @@ use solana_sdk::pubkey::Pubkey;
 
 use crate::impl_unified_event;
 use crate::streaming::event_parser::common::EventMetadata;
+use crate::streaming::event_parser::protocols::pumpfun::types::{BondingCurve, Global};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
 pub struct PumpFunCreateTokenEvent {
@@ -65,14 +66,7 @@ pub struct PumpFunTradeEvent {
     pub total_claimed_tokens: u64,
     pub current_sol_volume: u64,
     pub last_update_timestamp: i64,
-    #[borsh(skip)]
-    pub bonding_curve: Pubkey,
-    #[borsh(skip)]
-    pub associated_bonding_curve: Pubkey,
-    #[borsh(skip)]
-    pub associated_user: Pubkey,
-    #[borsh(skip)]
-    pub creator_vault: Pubkey,
+
     #[borsh(skip)]
     pub max_sol_cost: u64,
     #[borsh(skip)]
@@ -83,6 +77,31 @@ pub struct PumpFunTradeEvent {
     pub is_bot: bool,
     #[borsh(skip)]
     pub is_dev_create_token_trade: bool, // 是否是dev创建token的交易
+
+    #[borsh(skip)]
+    pub global: Pubkey,
+    // #[borsh(skip)]
+    // pub fee_recipient: Pubkey,
+    // #[borsh(skip)]
+    // pub mint: Pubkey,
+    #[borsh(skip)]
+    pub bonding_curve: Pubkey,
+    #[borsh(skip)]
+    pub associated_bonding_curve: Pubkey,
+    #[borsh(skip)]
+    pub associated_user: Pubkey,
+    // #[borsh(skip)]
+    // pub user: Pubkey,
+    #[borsh(skip)]
+    pub system_program: Pubkey,
+    #[borsh(skip)]
+    pub token_program: Pubkey,
+    #[borsh(skip)]
+    pub creator_vault: Pubkey,
+    #[borsh(skip)]
+    pub event_authority: Pubkey,
+    #[borsh(skip)]
+    pub program: Pubkey,
     #[borsh(skip)]
     pub global_volume_accumulator: Pubkey,
     #[borsh(skip)]
@@ -177,6 +196,35 @@ impl_unified_event!(
     pool
 );
 
+/// 铸币曲线
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
+pub struct PumpFunBondingCurveAccountEvent {
+    #[borsh(skip)]
+    pub metadata: EventMetadata,
+    pub pubkey: String,
+    pub executable: bool,
+    pub lamports: u64,
+    pub owner: String,
+    pub rent_epoch: u64,
+    pub bonding_curve: BondingCurve,
+}
+
+impl_unified_event!(PumpFunBondingCurveAccountEvent,);
+
+/// 全局配置
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
+pub struct PumpFunGlobalAccountEvent {
+    #[borsh(skip)]
+    pub metadata: EventMetadata,
+    pub pubkey: String,
+    pub executable: bool,
+    pub lamports: u64,
+    pub owner: String,
+    pub rent_epoch: u64,
+    pub global: Global,
+}
+impl_unified_event!(PumpFunGlobalAccountEvent,);
+
 /// 事件鉴别器常量
 pub mod discriminators {
     // 事件鉴别器
@@ -189,4 +237,8 @@ pub mod discriminators {
     pub const BUY_IX: &[u8] = &[102, 6, 61, 18, 1, 218, 235, 234];
     pub const SELL_IX: &[u8] = &[51, 230, 133, 164, 1, 127, 131, 173];
     pub const MIGRATE_IX: &[u8] = &[155, 234, 231, 146, 236, 158, 162, 30];
+
+    // 账户鉴别器
+    pub const BONDING_CURVE_ACCOUNT: &[u8] = &[23, 183, 248, 55, 96, 216, 172, 96];
+    pub const GLOBAL_ACCOUNT: &[u8] = &[167, 232, 232, 177, 200, 108, 114, 127];
 }

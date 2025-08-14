@@ -566,6 +566,9 @@ impl ShredStreamGrpc {
         let program_received_time_ms = chrono::Utc::now().timestamp_millis();
         let slot = transaction_with_slot.slot;
         let versioned_tx = transaction_with_slot.transaction;
+        if versioned_tx.signatures.is_empty() {
+            return Ok(()); // 如果没有签名，直接返回
+        }
         let signature = versioned_tx.signatures[0];
 
         // 预分配向量容量
@@ -629,6 +632,9 @@ impl ShredStreamGrpc {
         let program_received_time_ms = chrono::Utc::now().timestamp_millis();
         let slot = transaction_with_slot.slot;
         let versioned_tx = transaction_with_slot.transaction;
+        if versioned_tx.signatures.is_empty() {
+            return Ok(()); // 如果没有签名，直接返回
+        }
         let signature = versioned_tx.signatures[0];
 
         // 预分配向量容量

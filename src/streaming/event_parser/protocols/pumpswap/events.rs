@@ -2,8 +2,9 @@ use borsh::BorshDeserialize;
 use serde::{Deserialize, Serialize};
 use solana_sdk::pubkey::Pubkey;
 
-use crate::streaming::event_parser::common::EventMetadata;
 use crate::impl_unified_event;
+use crate::streaming::event_parser::common::EventMetadata;
+use crate::streaming::event_parser::protocols::pumpswap::types::{GlobalConfig, Pool};
 
 /// 买入事件
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
@@ -313,6 +314,32 @@ impl_unified_event!(
     user_pool_token_account
 );
 
+/// 全局配置
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
+pub struct PumpSwapGlobalConfigAccountEvent {
+    pub metadata: EventMetadata,
+    pub pubkey: String,
+    pub executable: bool,
+    pub lamports: u64,
+    pub owner: String,
+    pub rent_epoch: u64,
+    pub global_config: GlobalConfig,
+}
+impl_unified_event!(PumpSwapGlobalConfigAccountEvent,);
+
+/// 池
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
+pub struct PumpSwapPoolAccountEvent {
+    pub metadata: EventMetadata,
+    pub pubkey: String,
+    pub executable: bool,
+    pub lamports: u64,
+    pub owner: String,
+    pub rent_epoch: u64,
+    pub pool: Pool,
+}
+impl_unified_event!(PumpSwapPoolAccountEvent,);
+
 /// 事件鉴别器常量
 pub mod discriminators {
     // 事件鉴别器
@@ -328,4 +355,8 @@ pub mod discriminators {
     pub const CREATE_POOL_IX: &[u8] = &[233, 146, 209, 142, 207, 104, 64, 188];
     pub const DEPOSIT_IX: &[u8] = &[242, 35, 198, 137, 82, 225, 242, 182];
     pub const WITHDRAW_IX: &[u8] = &[183, 18, 70, 156, 148, 109, 161, 34];
+
+    // 账户鉴别器
+    pub const GLOBAL_CONFIG_ACCOUNT: &[u8] = &[149, 8, 156, 202, 160, 252, 176, 217];
+    pub const POOL_ACCOUNT: &[u8] = &[241, 154, 109, 4, 17, 177, 109, 188];
 }

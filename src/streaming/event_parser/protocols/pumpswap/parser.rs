@@ -38,8 +38,8 @@ impl PumpSwapEventParser {
                 inner_instruction_discriminator: discriminators::BUY_EVENT,
                 instruction_discriminator: discriminators::BUY_IX,
                 event_type: EventType::PumpSwapBuy,
-                inner_instruction_parser: Self::parse_buy_inner_instruction,
-                instruction_parser: Self::parse_buy_instruction,
+                inner_instruction_parser: Some(Self::parse_buy_inner_instruction),
+                instruction_parser: Some(Self::parse_buy_instruction),
             },
             GenericEventParseConfig {
                 program_id: PUMPSWAP_PROGRAM_ID,
@@ -47,8 +47,8 @@ impl PumpSwapEventParser {
                 inner_instruction_discriminator: discriminators::SELL_EVENT,
                 instruction_discriminator: discriminators::SELL_IX,
                 event_type: EventType::PumpSwapSell,
-                inner_instruction_parser: Self::parse_sell_inner_instruction,
-                instruction_parser: Self::parse_sell_instruction,
+                inner_instruction_parser: Some(Self::parse_sell_inner_instruction),
+                instruction_parser: Some(Self::parse_sell_instruction),
             },
             GenericEventParseConfig {
                 program_id: PUMPSWAP_PROGRAM_ID,
@@ -56,8 +56,8 @@ impl PumpSwapEventParser {
                 inner_instruction_discriminator: discriminators::CREATE_POOL_EVENT,
                 instruction_discriminator: discriminators::CREATE_POOL_IX,
                 event_type: EventType::PumpSwapCreatePool,
-                inner_instruction_parser: Self::parse_create_pool_inner_instruction,
-                instruction_parser: Self::parse_create_pool_instruction,
+                inner_instruction_parser: Some(Self::parse_create_pool_inner_instruction),
+                instruction_parser: Some(Self::parse_create_pool_instruction),
             },
             GenericEventParseConfig {
                 program_id: PUMPSWAP_PROGRAM_ID,
@@ -65,8 +65,8 @@ impl PumpSwapEventParser {
                 inner_instruction_discriminator: discriminators::DEPOSIT_EVENT,
                 instruction_discriminator: discriminators::DEPOSIT_IX,
                 event_type: EventType::PumpSwapDeposit,
-                inner_instruction_parser: Self::parse_deposit_inner_instruction,
-                instruction_parser: Self::parse_deposit_instruction,
+                inner_instruction_parser: Some(Self::parse_deposit_inner_instruction),
+                instruction_parser: Some(Self::parse_deposit_instruction),
             },
             GenericEventParseConfig {
                 program_id: PUMPSWAP_PROGRAM_ID,
@@ -74,8 +74,8 @@ impl PumpSwapEventParser {
                 inner_instruction_discriminator: discriminators::WITHDRAW_EVENT,
                 instruction_discriminator: discriminators::WITHDRAW_IX,
                 event_type: EventType::PumpSwapWithdraw,
-                inner_instruction_parser: Self::parse_withdraw_inner_instruction,
-                instruction_parser: Self::parse_withdraw_instruction,
+                inner_instruction_parser: Some(Self::parse_withdraw_inner_instruction),
+                instruction_parser: Some(Self::parse_withdraw_instruction),
             },
         ];
 

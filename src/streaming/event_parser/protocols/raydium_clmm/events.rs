@@ -1,6 +1,8 @@
-use crate::impl_unified_event;
 use crate::streaming::event_parser::common::EventMetadata;
-// use borsh::BorshDeserialize;
+use crate::streaming::event_parser::protocols::raydium_clmm::types::{PoolState, TickArrayState};
+use crate::{
+    impl_unified_event, streaming::event_parser::protocols::raydium_clmm::types::AmmConfig,
+};
 use serde::{Deserialize, Serialize};
 use solana_sdk::pubkey::Pubkey;
 
@@ -217,6 +219,45 @@ pub struct RaydiumClmmOpenPositionV2Event {
 }
 impl_unified_event!(RaydiumClmmOpenPositionV2Event,);
 
+/// 池配置
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RaydiumClmmAmmConfigAccountEvent {
+    pub metadata: EventMetadata,
+    pub pubkey: String,
+    pub executable: bool,
+    pub lamports: u64,
+    pub owner: String,
+    pub rent_epoch: u64,
+    pub amm_config: AmmConfig,
+}
+impl_unified_event!(RaydiumClmmAmmConfigAccountEvent,);
+
+/// 池状态
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RaydiumClmmPoolStateAccountEvent {
+    pub metadata: EventMetadata,
+    pub pubkey: String,
+    pub executable: bool,
+    pub lamports: u64,
+    pub owner: String,
+    pub rent_epoch: u64,
+    pub pool_state: PoolState,
+}
+impl_unified_event!(RaydiumClmmPoolStateAccountEvent,);
+
+/// 池状态
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RaydiumClmmTickArrayStateAccountEvent {
+    pub metadata: EventMetadata,
+    pub pubkey: String,
+    pub executable: bool,
+    pub lamports: u64,
+    pub owner: String,
+    pub rent_epoch: u64,
+    pub tick_array_state: TickArrayState,
+}
+impl_unified_event!(RaydiumClmmTickArrayStateAccountEvent,);
+
 /// 事件鉴别器常量
 pub mod discriminators {
     // 指令鉴别器
@@ -228,4 +269,9 @@ pub mod discriminators {
     pub const CREATE_POOL: &[u8] = &[233, 146, 209, 142, 207, 104, 64, 188];
     pub const OPEN_POSITION_WITH_TOKEN_22_NFT: &[u8] = &[77, 255, 174, 82, 125, 29, 201, 46];
     pub const OPEN_POSITION_V2: &[u8] = &[77, 184, 74, 214, 112, 86, 241, 199];
+
+    // 账号鉴别器
+    pub const AMM_CONFIG: &[u8] = &[218, 244, 33, 104, 203, 203, 43, 111];
+    pub const POOL_STATE: &[u8] = &[247, 237, 227, 245, 215, 195, 222, 70];
+    pub const TICK_ARRAY_STATE: &[u8] = &[192, 155, 85, 205, 49, 249, 129, 42];
 }

@@ -38,8 +38,8 @@ impl RaydiumAmmV4EventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::SWAP_BASE_IN,
                 event_type: EventType::RaydiumAmmV4SwapBaseIn,
-                inner_instruction_parser: Self::empty_parse,
-                instruction_parser: Self::parse_swap_base_input_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_swap_base_input_instruction),
             },
             GenericEventParseConfig {
                 program_id: RAYDIUM_AMM_V4_PROGRAM_ID,
@@ -47,8 +47,8 @@ impl RaydiumAmmV4EventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::SWAP_BASE_OUT,
                 event_type: EventType::RaydiumAmmV4SwapBaseOut,
-                inner_instruction_parser: Self::empty_parse,
-                instruction_parser: Self::parse_swap_base_output_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_swap_base_output_instruction),
             },
             GenericEventParseConfig {
                 program_id: RAYDIUM_AMM_V4_PROGRAM_ID,
@@ -56,8 +56,8 @@ impl RaydiumAmmV4EventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::DEPOSIT,
                 event_type: EventType::RaydiumAmmV4Deposit,
-                inner_instruction_parser: Self::empty_parse,
-                instruction_parser: Self::parse_deposit_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_deposit_instruction),
             },
             GenericEventParseConfig {
                 program_id: RAYDIUM_AMM_V4_PROGRAM_ID,
@@ -65,8 +65,8 @@ impl RaydiumAmmV4EventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::INITIALIZE2,
                 event_type: EventType::RaydiumAmmV4Initialize2,
-                inner_instruction_parser: Self::empty_parse,
-                instruction_parser: Self::parse_initialize2_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_initialize2_instruction),
             },
             GenericEventParseConfig {
                 program_id: RAYDIUM_AMM_V4_PROGRAM_ID,
@@ -74,8 +74,8 @@ impl RaydiumAmmV4EventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::WITHDRAW,
                 event_type: EventType::RaydiumAmmV4Withdraw,
-                inner_instruction_parser: Self::empty_parse,
-                instruction_parser: Self::parse_withdraw_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_withdraw_instruction),
             },
             GenericEventParseConfig {
                 program_id: RAYDIUM_AMM_V4_PROGRAM_ID,
@@ -83,18 +83,14 @@ impl RaydiumAmmV4EventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::WITHDRAW_PNL,
                 event_type: EventType::RaydiumAmmV4WithdrawPnl,
-                inner_instruction_parser: Self::empty_parse,
-                instruction_parser: Self::parse_withdraw_pnl_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_withdraw_pnl_instruction),
             },
         ];
 
         let inner = GenericEventParser::new(vec![RAYDIUM_AMM_V4_PROGRAM_ID], configs);
 
         Self { inner }
-    }
-
-    fn empty_parse(_data: &[u8], _metadata: EventMetadata) -> Option<Box<dyn UnifiedEvent>> {
-        None
     }
 
     /// 解析提现指令事件

@@ -1,5 +1,8 @@
-use crate::impl_unified_event;
 use crate::streaming::event_parser::common::EventMetadata;
+use crate::streaming::event_parser::protocols::raydium_cpmm::types::PoolState;
+use crate::{
+    impl_unified_event, streaming::event_parser::protocols::raydium_cpmm::types::AmmConfig,
+};
 use borsh::BorshDeserialize;
 use serde::{Deserialize, Serialize};
 use solana_sdk::pubkey::Pubkey;
@@ -107,6 +110,32 @@ pub struct RaydiumCpmmWithdrawEvent {
 }
 impl_unified_event!(RaydiumCpmmWithdrawEvent,);
 
+/// 池配置
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
+pub struct RaydiumCpmmAmmConfigAccountEvent {
+    pub metadata: EventMetadata,
+    pub pubkey: String,
+    pub executable: bool,
+    pub lamports: u64,
+    pub owner: String,
+    pub rent_epoch: u64,
+    pub amm_config: AmmConfig,
+}
+impl_unified_event!(RaydiumCpmmAmmConfigAccountEvent,);
+
+/// 池状态
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
+pub struct RaydiumCpmmPoolStateAccountEvent {
+    pub metadata: EventMetadata,
+    pub pubkey: String,
+    pub executable: bool,
+    pub lamports: u64,
+    pub owner: String,
+    pub rent_epoch: u64,
+    pub pool_state: PoolState,
+}
+impl_unified_event!(RaydiumCpmmPoolStateAccountEvent,);
+
 /// 事件鉴别器常量
 pub mod discriminators {
     // 指令鉴别器
@@ -115,4 +144,8 @@ pub mod discriminators {
     pub const DEPOSIT: &[u8] = &[242, 35, 198, 137, 82, 225, 242, 182];
     pub const INITIALIZE: &[u8] = &[175, 175, 109, 31, 13, 152, 155, 237];
     pub const WITHDRAW: &[u8] = &[183, 18, 70, 156, 148, 109, 161, 34];
+
+    // 账号鉴别器
+    pub const AMM_CONFIG: &[u8] = &[218, 244, 33, 104, 203, 203, 43, 111];
+    pub const POOL_STATE: &[u8] = &[247, 237, 227, 245, 215, 195, 222, 70];
 }

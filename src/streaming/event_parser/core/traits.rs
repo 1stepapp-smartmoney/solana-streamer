@@ -542,8 +542,8 @@ pub struct GenericEventParseConfig {
     pub inner_instruction_discriminator: &'static str,
     pub instruction_discriminator: &'static [u8],
     pub event_type: EventType,
-    pub inner_instruction_parser: InnerInstructionEventParser,
-    pub instruction_parser: InstructionEventParser,
+    pub inner_instruction_parser: Option<InnerInstructionEventParser>,
+    pub instruction_parser: Option<InstructionEventParser>,
 }
 
 /// 内联指令事件解析器
@@ -576,7 +576,7 @@ impl GenericEventParser {
             instruction_configs
                 .entry(config.instruction_discriminator.to_vec())
                 .or_insert_with(Vec::new)
-                .push(config);
+                .push(config.clone());
         }
 
         Self { program_ids, inner_instruction_configs, instruction_configs }
@@ -594,21 +594,25 @@ impl GenericEventParser {
         program_received_time_ms: i64,
         index: String,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        let timestamp = block_time.unwrap_or(Timestamp { seconds: 0, nanos: 0 });
-        let block_time_ms = timestamp.seconds * 1000 + (timestamp.nanos as i64) / 1_000_000;
-        let metadata = EventMetadata::new(
-            signature.to_string(),
-            signature.to_string(),
-            slot,
-            timestamp.seconds,
-            block_time_ms,
-            config.protocol_type.clone(),
-            config.event_type.clone(),
-            config.program_id,
-            index,
-            program_received_time_ms,
-        );
-        (config.inner_instruction_parser)(data, metadata)
+        if let Some(parser) = config.inner_instruction_parser {
+            let timestamp = block_time.unwrap_or(Timestamp { seconds: 0, nanos: 0 });
+            let block_time_ms = timestamp.seconds * 1000 + (timestamp.nanos as i64) / 1_000_000;
+            let metadata = EventMetadata::new(
+                signature.to_string(),
+                signature.to_string(),
+                slot,
+                timestamp.seconds,
+                block_time_ms,
+                config.protocol_type.clone(),
+                config.event_type.clone(),
+                config.program_id,
+                index,
+                program_received_time_ms,
+            );
+            parser(data, metadata)
+        } else {
+            None
+        }
     }
 
     /// 通用的指令解析方法
@@ -624,21 +628,25 @@ impl GenericEventParser {
         program_received_time_ms: i64,
         index: String,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        let timestamp = block_time.unwrap_or(Timestamp { seconds: 0, nanos: 0 });
-        let block_time_ms = timestamp.seconds * 1000 + (timestamp.nanos as i64) / 1_000_000;
-        let metadata = EventMetadata::new(
-            signature.to_string(),
-            signature.to_string(),
-            slot,
-            timestamp.seconds,
-            block_time_ms,
-            config.protocol_type.clone(),
-            config.event_type.clone(),
-            config.program_id,
-            index,
-            program_received_time_ms,
-        );
-        (config.instruction_parser)(data, account_pubkeys, metadata)
+        if let Some(parser) = config.instruction_parser {
+            let timestamp = block_time.unwrap_or(Timestamp { seconds: 0, nanos: 0 });
+            let block_time_ms = timestamp.seconds * 1000 + (timestamp.nanos as i64) / 1_000_000;
+            let metadata = EventMetadata::new(
+                signature.to_string(),
+                signature.to_string(),
+                slot,
+                timestamp.seconds,
+                block_time_ms,
+                config.protocol_type.clone(),
+                config.event_type.clone(),
+                config.program_id,
+                index,
+                program_received_time_ms,
+            );
+            parser(data, account_pubkeys, metadata)
+        } else {
+            None
+        }
     }
 }
 
