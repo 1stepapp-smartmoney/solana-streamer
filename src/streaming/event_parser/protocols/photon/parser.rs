@@ -40,8 +40,8 @@ impl PhotonEventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::PHOTON_PUMPFUN_BUY_IX,
                 event_type: EventType::PhotonPumpFunBuy,
-                inner_instruction_parser: Self::parse_pumpfun_trade_inner_instruction,
-                instruction_parser: Self::parse_photon_pumpfun_buy_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_photon_pumpfun_buy_instruction),
             },
             GenericEventParseConfig {
                 program_id: PHOTON_PROGRAM_ID,
@@ -49,8 +49,8 @@ impl PhotonEventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::PHOTON_PUMPFUN_SELL_IX,
                 event_type: EventType::PhotonPumpFunSell,
-                inner_instruction_parser: Self::parse_pumpfun_trade_inner_instruction,
-                instruction_parser: Self::parse_photon_pumpfun_sell_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_photon_pumpfun_sell_instruction),
             },
             GenericEventParseConfig {
                 program_id: PHOTON_PROGRAM_ID,
@@ -58,8 +58,8 @@ impl PhotonEventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::PHOTON_PUMPSWAP_TRADE_IX,
                 event_type: EventType::PhotonPumpSwapTrade,
-                inner_instruction_parser: Self::parse_pumpswap_inner_instruction,
-                instruction_parser: Self::parse_photon_pumpswap_trade_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_photon_pumpswap_trade_instruction),
             },
         ];
 

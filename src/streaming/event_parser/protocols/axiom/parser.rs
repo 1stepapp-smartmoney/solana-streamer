@@ -33,8 +33,8 @@ impl AxiomEventParser {
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::AXIOM_PUMPFUN_BUY_IX,
                 event_type: EventType::AxiomPumpFunBuy,
-                inner_instruction_parser: Self::parse_axiom_trade_inner_instruction,
-                instruction_parser: Self::parse_axiom_pumpfun_buy_instruction,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_axiom_pumpfun_buy_instruction),
             },
         ];
 

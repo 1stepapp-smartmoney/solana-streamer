@@ -38,8 +38,8 @@ impl MeteoraDBCEventParser {
                 inner_instruction_discriminator: discriminators::TRADE_EVENT,
                 instruction_discriminator: discriminators::SWAP,
                 event_type: EventType::MeteoraDBCSwap,
-                inner_instruction_parser: Self::parse_trade_inner_instruction,
-                instruction_parser: Self::parse_swap_instruction,
+                inner_instruction_parser: Some(Self::parse_trade_inner_instruction),
+                instruction_parser: Some(Self::parse_swap_instruction),
             },
         ];
 
