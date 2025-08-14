@@ -2,6 +2,7 @@ use futures::{channel::mpsc, StreamExt};
 use log::error;
 use solana_sdk::pubkey::Pubkey;
 use std::sync::Arc;
+use std::thread::sleep;
 use tokio::sync::Mutex;
 use yellowstone_grpc_proto::geyser::CommitmentLevel;
 
@@ -139,38 +140,54 @@ impl YellowstoneGrpc {
             .subscribe_with_account_request(account_filter.account, account_filter.owner);
 
         // 订阅事件
-        let (mut subscribe_tx, mut stream) = self
-            .subscription_manager
-            .subscribe_with_request(transactions, accounts, commitment)
-            .await?;
+        // let (mut subscribe_tx, mut stream) = self
+        //     .subscription_manager
+        //     .subscribe_with_request(transactions, accounts, commitment)
+        //     .await?;
 
         // 创建通道，使用配置中的通道大小
         let (mut tx, mut rx) = mpsc::channel::<EventPretty>(self.config.backpressure.channel_size);
 
         // 启动流处理任务
         let backpressure_strategy = self.config.backpressure.strategy;
+        let submanager = self.subscription_manager.clone();
         tokio::spawn(async move {
-            while let Some(message) = stream.next().await {
-                match message {
-                    Ok(msg) => {
-                        if let Err(e) = StreamHandler::handle_stream_message(
-                            msg,
-                            &mut tx,
-                            &mut subscribe_tx,
-                            backpressure_strategy,
-                        )
-                        .await
-                        {
-                            error!("Error handling message: {e:?}");
+            loop {
+                let trans_clone = transactions.clone();
+                let accounts_filter_clone = accounts.clone();
+
+                let (mut subscribe_tx, mut stream) = submanager
+                    .subscribe_with_request(trans_clone, accounts_filter_clone, commitment)
+                    .await.unwrap();
+
+                while let Some(message) = stream.next().await {
+                    match message {
+                        Ok(msg) => {
+                            if let Err(e) = StreamHandler::handle_stream_message(
+                                msg,
+                                &mut tx,
+                                &mut subscribe_tx,
+                                backpressure_strategy,
+                            )
+                                .await
+                            {
+                                error!("Error handling message: {e:?}");
+                                break;
+                            }
+                        }
+                        Err(error) => {
+                            error!("Stream error: {error:?}");
                             break;
                         }
                     }
-                    Err(error) => {
-                        error!("Stream error: {error:?}");
-                        break;
-                    }
                 }
+
+                sleep(std::time::Duration::from_secs(1)); // 重试间隔
+                error!("连接断开，尝试重连。。");
+
             }
+
+
         });
 
         // 即时处理交易，无批处理
