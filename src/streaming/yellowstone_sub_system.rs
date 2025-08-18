@@ -45,9 +45,12 @@ impl YellowstoneGrpc {
             account_include,
             account_exclude,
             addrs,
+            None,
         );
-        let (mut subscribe_tx, mut stream) =
-            self.subscription_manager.subscribe_with_request(transactions, None, None).await?;
+        let (mut subscribe_tx, mut stream) = self
+            .subscription_manager
+            .subscribe_with_request(transactions, None, None, None)
+            .await?;
         let (mut tx, mut rx) = mpsc::channel::<EventPretty>(CHANNEL_SIZE);
 
         let callback = Box::new(callback);

@@ -2,6 +2,7 @@ use solana_streamer_sdk::{
     match_event,
     streaming::{
         event_parser::{
+            common::{filter::EventTypeFilter, EventType},
             protocols::{
                 bonk::{
                     parser::BONK_PROGRAM_ID, BonkGlobalConfigAccountEvent, BonkMigrateToAmmEvent,
@@ -42,7 +43,7 @@ use solana_streamer_sdk::{
             Protocol, UnifiedEvent,
         },
         grpc::ClientConfig,
-        shred_stream::ShredClientConfig,
+        shred::StreamClientConfig,
         yellowstone_grpc::{AccountFilter, TransactionFilter},
         ShredStreamGrpc, YellowstoneGrpc,
     },
@@ -80,6 +81,7 @@ async fn test_grpc() -> Result<(), Box<dyn std::error::Error>> {
         Protocol::Bonk,
         Protocol::RaydiumCpmm,
         Protocol::RaydiumClmm,
+        Protocol::RaydiumAmmV4,
     ];
 
     println!("Protocols to monitor: {:?}", protocols);
@@ -106,6 +108,12 @@ async fn test_grpc() -> Result<(), Box<dyn std::error::Error>> {
     // 监听属于owner程序的账号数据 -> 账号事件监听
     let account_filter = AccountFilter { account: vec![], owner: account_include.clone() };
 
+    // Event filtering
+    // No event filtering, includes all events
+    let event_type_filter = None;
+    // Only include PumpSwapBuy events and PumpSwapSell events
+    // let event_type_filter = EventTypeFilter { include: vec![EventType::PumpSwapBuy, EventType::PumpSwapSell] };
+
     println!("Starting to listen for events, press Ctrl+C to stop...");
     println!("Monitoring programs: {:?}", account_include);
 
@@ -116,6 +124,7 @@ async fn test_grpc() -> Result<(), Box<dyn std::error::Error>> {
         None,
         transaction_filter,
         account_filter,
+        event_type_filter,
         None,
         callback,
     )
@@ -128,7 +137,7 @@ async fn test_shreds() -> Result<(), Box<dyn std::error::Error>> {
     println!("Subscribing to ShredStream events...");
 
     // Create low-latency configuration
-    let mut config = ShredClientConfig::low_latency();
+    let mut config = StreamClientConfig::low_latency();
     // Enable performance monitoring, has performance overhead, disabled by default
     config.enable_metrics = true;
     let shred_stream =
@@ -144,8 +153,15 @@ async fn test_shreds() -> Result<(), Box<dyn std::error::Error>> {
         Protocol::RaydiumAmmV4,
     ];
 
+    // Event filtering
+    // No event filtering, includes all events
+    let event_type_filter = None;
+    // Only include PumpSwapBuy events and PumpSwapSell events
+    // let event_type_filter =
+    //     EventTypeFilter { include: vec![EventType::PumpSwapBuy, EventType::PumpSwapSell] };
+
     println!("Listening for events, press Ctrl+C to stop...");
-    shred_stream.shredstream_subscribe::<_, fn(Vec<Box<dyn UnifiedEvent>>)>(protocols, None, callback,None).await?;
+    shred_stream.shredstream_subscribe::<_, fn(Vec<Box<dyn UnifiedEvent>>)>(protocols, None,event_type_filter, callback,None).await?;
 
     Ok(())
 }

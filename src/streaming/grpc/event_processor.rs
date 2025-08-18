@@ -1,12 +1,14 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use solana_sdk::pubkey::Pubkey;
 
 use super::types::EventPretty;
 use crate::common::AnyResult;
 use crate::streaming::common::{
-    EventBatchProcessor as EventBatchCollector, MetricsManager, StreamClientConfig as ClientConfig,
+    EventBatchProcessor as EventBatchCollector, MetricsEventType, MetricsManager,
+    StreamClientConfig as ClientConfig,
 };
+use crate::streaming::event_parser::common::filter::EventTypeFilter;
 use crate::streaming::event_parser::core::account_event_parser::AccountEventParser;
 use crate::streaming::event_parser::core::common_event_parser::CommonEventParser;
 use crate::streaming::event_parser::EventParser;
@@ -18,12 +20,29 @@ use crate::streaming::event_parser::{
 pub struct EventProcessor {
     pub(crate) metrics_manager: MetricsManager,
     pub(crate) config: ClientConfig,
+    pub(crate) parser_cache: Arc<Mutex<Option<Arc<dyn EventParser>>>>,
 }
 
 impl EventProcessor {
     /// 创建新的事件处理器
     pub fn new(metrics_manager: MetricsManager, config: ClientConfig) -> Self {
-        Self { metrics_manager, config }
+        Self { metrics_manager, config, parser_cache: Arc::new(Mutex::new(None)) }
+    }
+
+    /// 获取或创建解析器，使用缓存机制避免重复创建
+    fn get_or_create_parser(
+        &self,
+        protocols: Vec<Protocol>,
+        event_type_filter: Option<EventTypeFilter>,
+    ) -> Arc<dyn EventParser> {
+        let mut cache = self.parser_cache.lock().unwrap();
+        if let Some(cached_parser) = cache.clone() {
+            return cached_parser.clone();
+        }
+        let parser: Arc<dyn EventParser> =
+            Arc::new(MutilEventParser::new(protocols.clone(), event_type_filter.clone()));
+        *cache = Some(parser.clone());
+        parser
     }
 
     /// 使用性能监控处理事件交易
@@ -33,19 +52,21 @@ impl EventProcessor {
         callback: &F,
         bot_wallet: Option<Pubkey>,
         protocols: Vec<Protocol>,
+        event_type_filter: Option<EventTypeFilter>,
     ) -> AnyResult<()>
     where
         F: Fn(Box<dyn UnifiedEvent>) + Send + Sync,
     {
         match event_pretty {
             EventPretty::Account(account_pretty) => {
-                self.metrics_manager.add_process_count().await;
+                self.metrics_manager.add_account_process_count().await;
                 let start_time = std::time::Instant::now();
                 let program_received_time_ms = chrono::Utc::now().timestamp_millis();
                 let account_event = AccountEventParser::parse_account_event(
                     protocols.clone(),
                     account_pretty,
                     program_received_time_ms,
+                    event_type_filter,
                 );
                 if let Some(event) = account_event {
                     callback(event);
@@ -53,21 +74,22 @@ impl EventProcessor {
                     let processing_time = start_time.elapsed();
                     let processing_time_ms = processing_time.as_millis() as f64;
                     // 更新性能指标（如果启用）
-                    self.metrics_manager.update_metrics(1, processing_time_ms).await;
+                    self.metrics_manager
+                        .update_metrics(MetricsEventType::Account, 1, processing_time_ms)
+                        .await;
                     // 记录慢处理操作
                     self.metrics_manager.log_slow_processing(processing_time_ms, 1);
                 }
             }
             EventPretty::Transaction(transaction_pretty) => {
-                self.metrics_manager.add_process_count().await;
+                self.metrics_manager.add_tx_process_count().await;
                 let start_time = std::time::Instant::now();
                 let program_received_time_ms = chrono::Utc::now().timestamp_millis();
                 let slot = transaction_pretty.slot;
                 let signature = transaction_pretty.signature.to_string();
 
-                // 直接创建解析器并处理事务
-                let parser: Arc<dyn EventParser> =
-                    Arc::new(MutilEventParser::new(protocols.clone()));
+                // 使用缓存获取解析器
+                let parser = self.get_or_create_parser(protocols.clone(), event_type_filter);
                 let all_events = parser
                     .parse_transaction(
                         transaction_pretty.tx.clone(),
@@ -98,13 +120,15 @@ impl EventProcessor {
                 let processing_time_ms = processing_time.as_millis() as f64;
 
                 // 更新性能指标（如果启用）
-                self.metrics_manager.update_metrics(event_count as u64, processing_time_ms).await;
+                self.metrics_manager
+                    .update_metrics(MetricsEventType::Tx, event_count as u64, processing_time_ms)
+                    .await;
                 // 记录慢处理操作
                 self.metrics_manager.log_slow_processing(processing_time_ms, event_count);
             }
             EventPretty::BlockMeta(block_meta_pretty) => {
                 let start_time = std::time::Instant::now();
-                self.metrics_manager.add_process_count().await;
+                self.metrics_manager.add_block_meta_process_count().await;
                 let block_time_ms = block_meta_pretty
                     .block_time
                     .map(|ts| ts.seconds * 1000 + ts.nanos as i64 / 1_000_000)
@@ -119,7 +143,9 @@ impl EventProcessor {
                 let processing_time = start_time.elapsed();
                 let processing_time_ms = processing_time.as_millis() as f64;
                 // 更新性能指标（如果启用）
-                self.metrics_manager.update_metrics(1, processing_time_ms).await;
+                self.metrics_manager
+                    .update_metrics(MetricsEventType::BlockMeta, 1, processing_time_ms)
+                    .await;
                 // 记录慢处理操作
                 self.metrics_manager.log_slow_processing(processing_time_ms, 1);
             }
@@ -135,19 +161,21 @@ impl EventProcessor {
         batch_processor: &mut EventBatchCollector<F>,
         bot_wallet: Option<Pubkey>,
         protocols: Vec<Protocol>,
+        event_type_filter: Option<EventTypeFilter>,
     ) -> AnyResult<()>
     where
         F: Fn(Vec<Box<dyn UnifiedEvent>>) + Send + Sync + 'static,
     {
         match event_pretty {
             EventPretty::Account(account_pretty) => {
-                self.metrics_manager.add_process_count().await;
+                self.metrics_manager.add_account_process_count().await;
                 let start_time = std::time::Instant::now();
                 let program_received_time_ms = chrono::Utc::now().timestamp_millis();
                 let account_event = AccountEventParser::parse_account_event(
                     protocols.clone(),
                     account_pretty,
                     program_received_time_ms,
+                    event_type_filter,
                 );
                 if let Some(event) = account_event {
                     (batch_processor.callback)(vec![event]);
@@ -155,21 +183,22 @@ impl EventProcessor {
                     let processing_time = start_time.elapsed();
                     let processing_time_ms = processing_time.as_millis() as f64;
                     // 实际调用性能指标更新
-                    self.metrics_manager.update_metrics(1, processing_time_ms).await;
+                    self.metrics_manager
+                        .update_metrics(MetricsEventType::Account, 1, processing_time_ms)
+                        .await;
                     // 记录慢处理操作
                     self.metrics_manager.log_slow_processing(processing_time_ms, 1);
                 }
             }
             EventPretty::Transaction(transaction_pretty) => {
-                self.metrics_manager.add_process_count().await;
+                self.metrics_manager.add_tx_process_count().await;
                 let start_time = std::time::Instant::now();
                 let program_received_time_ms = chrono::Utc::now().timestamp_millis();
                 let slot = transaction_pretty.slot;
                 let signature = transaction_pretty.signature.to_string();
 
-                // 直接创建解析器并处理事务
-                let parser: Arc<dyn EventParser> =
-                    Arc::new(MutilEventParser::new(protocols.clone()));
+                // 使用缓存获取解析器
+                let parser = self.get_or_create_parser(protocols.clone(), event_type_filter);
                 let result = parser
                     .parse_transaction(
                         transaction_pretty.tx.clone(),
@@ -224,13 +253,16 @@ impl EventProcessor {
                 let processing_time_ms = processing_time.as_millis() as f64;
 
                 // 实际调用性能指标更新
-                self.metrics_manager.update_metrics(total_events as u64, processing_time_ms).await;
+                self.metrics_manager
+                    .update_metrics(MetricsEventType::Tx, total_events as u64, processing_time_ms)
+                    .await;
 
                 // 记录慢处理操作
                 self.metrics_manager.log_slow_processing(processing_time_ms, total_events);
             }
             EventPretty::BlockMeta(block_meta_pretty) => {
                 let start_time = std::time::Instant::now();
+                self.metrics_manager.add_block_meta_process_count().await;
                 let block_time_ms = block_meta_pretty
                     .block_time
                     .map(|ts| ts.seconds * 1000 + ts.nanos as i64 / 1_000_000)
@@ -245,7 +277,9 @@ impl EventProcessor {
                 let processing_time = start_time.elapsed();
                 let processing_time_ms = processing_time.as_millis() as f64;
                 // 更新性能指标（如果启用）
-                self.metrics_manager.update_metrics(1, processing_time_ms).await;
+                self.metrics_manager
+                    .update_metrics(MetricsEventType::BlockMeta, 1, processing_time_ms)
+                    .await;
                 // 记录慢处理操作
                 self.metrics_manager.log_slow_processing(processing_time_ms, 1);
             }

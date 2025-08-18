@@ -173,6 +173,8 @@ impl BonkEventParser {
             quote_vault: accounts[8],
             base_token_mint: accounts[9],
             quote_token_mint: accounts[10],
+            base_token_program: accounts[11],
+            quote_token_program: accounts[12],
             trade_direction: TradeDirection::Buy,
             ..Default::default()
         }))
@@ -207,6 +209,8 @@ impl BonkEventParser {
             quote_vault: accounts[8],
             base_token_mint: accounts[9],
             quote_token_mint: accounts[10],
+            base_token_program: accounts[11],
+            quote_token_program: accounts[12],
             trade_direction: TradeDirection::Buy,
             ..Default::default()
         }))
@@ -241,6 +245,8 @@ impl BonkEventParser {
             quote_vault: accounts[8],
             base_token_mint: accounts[9],
             quote_token_mint: accounts[10],
+            base_token_program: accounts[11],
+            quote_token_program: accounts[12],
             trade_direction: TradeDirection::Sell,
             ..Default::default()
         }))
@@ -275,6 +281,8 @@ impl BonkEventParser {
             quote_vault: accounts[8],
             base_token_mint: accounts[9],
             quote_token_mint: accounts[10],
+            base_token_program: accounts[11],
+            quote_token_program: accounts[12],
             trade_direction: TradeDirection::Sell,
             ..Default::default()
         }))

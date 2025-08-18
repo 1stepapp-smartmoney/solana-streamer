@@ -3,6 +3,7 @@ use std::sync::OnceLock;
 
 use solana_sdk::pubkey::Pubkey;
 
+use crate::streaming::event_parser::common::filter::EventTypeFilter;
 use crate::streaming::event_parser::common::{EventMetadata, EventType, ProtocolType};
 use crate::streaming::event_parser::core::traits::UnifiedEvent;
 use crate::streaming::event_parser::protocols::bonk::parser::BONK_PROGRAM_ID;
@@ -34,7 +35,7 @@ static PROTOCOL_CONFIGS_CACHE: OnceLock<HashMap<Protocol, Vec<AccountEventParseC
 pub struct AccountEventParser {}
 
 impl AccountEventParser {
-    pub fn configs(protocols: Vec<Protocol>) -> Vec<AccountEventParseConfig> {
+    pub fn configs(protocols: Vec<Protocol>, event_type_filter: Option<EventTypeFilter>) -> Vec<AccountEventParseConfig> {
         let protocols_map = PROTOCOL_CONFIGS_CACHE.get_or_init(|| {
             let mut map: HashMap<Protocol, Vec<AccountEventParseConfig>> = HashMap::new();
             map.insert(Protocol::PumpSwap, vec![
@@ -145,7 +146,11 @@ impl AccountEventParser {
 
         let mut configs = vec![];
         for protocol in protocols {
-            configs.extend(protocols_map.get(&protocol).unwrap_or(&vec![]).clone());
+            let protocol_configs = protocols_map.get(&protocol).unwrap_or(&vec![]).clone();
+            let filtered_configs: Vec<AccountEventParseConfig> = protocol_configs.into_iter().filter(|config| {
+                event_type_filter.as_ref().map(|filter| filter.include.contains(&config.event_type)).unwrap_or(true)
+            }).collect();
+            configs.extend(filtered_configs);
         }
         configs
     }
@@ -154,8 +159,9 @@ impl AccountEventParser {
         protocols: Vec<Protocol>,
         account: AccountPretty,
         program_received_time_ms: i64,
+        event_type_filter: Option<EventTypeFilter>,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        let configs = Self::configs(protocols);
+        let configs = Self::configs(protocols, event_type_filter);
         for config in configs {
             if account.owner == config.program_id.to_string()
                 && account.data[..config.account_discriminator.len()]

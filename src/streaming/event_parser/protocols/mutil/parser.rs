@@ -4,6 +4,7 @@ use prost_types::Timestamp;
 use solana_sdk::{instruction::CompiledInstruction, pubkey::Pubkey};
 use solana_transaction_status::UiCompiledInstruction;
 
+use crate::streaming::event_parser::common::filter::EventTypeFilter;
 use crate::streaming::event_parser::{
     core::traits::{EventParser, GenericEventParseConfig, GenericEventParser, UnifiedEvent},
     EventParserFactory, Protocol,
@@ -14,7 +15,7 @@ pub struct MutilEventParser {
 }
 
 impl MutilEventParser {
-    pub fn new(protocols: Vec<Protocol>) -> Self {
+    pub fn new(protocols: Vec<Protocol>, event_type_filter: Option<EventTypeFilter>) -> Self {
         let mut inner = GenericEventParser::new(vec![], vec![]);
         // Configure all event types
         for protocol in protocols {
@@ -22,12 +23,18 @@ impl MutilEventParser {
 
             // Merge inner_instruction_configs, append configurations to existing Vec
             for (key, configs) in parse.inner_instruction_configs() {
-                inner.inner_instruction_configs.entry(key).or_insert_with(Vec::new).extend(configs);
+                let filtered_configs: Vec<GenericEventParseConfig> = configs.into_iter().filter(|config| {
+                    event_type_filter.as_ref().map(|filter| filter.include.contains(&config.event_type)).unwrap_or(true)
+                }).collect();
+                inner.inner_instruction_configs.entry(key).or_insert_with(Vec::new).extend(filtered_configs);
             }
 
             // Merge instruction_configs, append configurations to existing Vec
             for (key, configs) in parse.instruction_configs() {
-                inner.instruction_configs.entry(key).or_insert_with(Vec::new).extend(configs);
+                let filtered_configs: Vec<GenericEventParseConfig> = configs.into_iter().filter(|config| {
+                    event_type_filter.as_ref().map(|filter| filter.include.contains(&config.event_type)).unwrap_or(true)
+                }).collect();
+                inner.instruction_configs.entry(key).or_insert_with(Vec::new).extend(filtered_configs);
             }
 
             // Append program_ids (this is already appending)

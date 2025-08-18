@@ -1,5 +1,6 @@
 pub mod types;
 pub mod utils;
+pub mod filter;
 
 /// 自动生成UnifiedEvent trait实现的宏
 #[macro_export]

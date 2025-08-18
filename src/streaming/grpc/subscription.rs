@@ -12,6 +12,7 @@ use super::types::AccountsFilterMap;
 use super::types::TransactionsFilterMap;
 use crate::common::AnyResult;
 use crate::streaming::common::StreamClientConfig as ClientConfig;
+use crate::streaming::event_parser::common::filter::EventTypeFilter;
 
 /// 订阅管理器
 #[derive(Clone)]
@@ -41,17 +42,27 @@ impl SubscriptionManager {
     /// 创建订阅请求并返回流
     pub async fn subscribe_with_request(
         &self,
-        transactions: TransactionsFilterMap,
+        transactions: Option<TransactionsFilterMap>,
         accounts: Option<AccountsFilterMap>,
         commitment: Option<CommitmentLevel>,
+        event_type_filter: Option<EventTypeFilter>,
     ) -> AnyResult<(
         impl Sink<SubscribeRequest, Error = mpsc::SendError>,
         impl Stream<Item = Result<SubscribeUpdate, Status>>,
     )> {
+        let blocks_meta = if event_type_filter.is_some()
+            && event_type_filter.as_ref().unwrap().include_block_event()
+        {
+            hashmap! { "".to_owned() => SubscribeRequestFilterBlocksMeta {} }
+        } else if event_type_filter.is_none() {
+            hashmap! { "".to_owned() => SubscribeRequestFilterBlocksMeta {} }
+        } else {
+            hashmap! {}
+        };
         let subscribe_request = SubscribeRequest {
             accounts: accounts.unwrap_or_default(),
-            transactions,
-            blocks_meta: hashmap! { "".to_owned() => SubscribeRequestFilterBlocksMeta {} },
+            transactions: transactions.unwrap_or_default(),
+            blocks_meta,
             commitment: if let Some(commitment) = commitment {
                 Some(commitment as i32)
             } else {
@@ -69,8 +80,14 @@ impl SubscriptionManager {
         &self,
         account: Vec<String>,
         owner: Vec<String>,
+        event_type_filter: Option<EventTypeFilter>,
     ) -> Option<AccountsFilterMap> {
         if account.len() == 0 && owner.len() == 0 {
+            return None;
+        }
+        if event_type_filter.is_some()
+            && !event_type_filter.as_ref().unwrap().include_account_event()
+        {
             return None;
         }
         let mut accounts = HashMap::new();
@@ -92,7 +109,13 @@ impl SubscriptionManager {
         account_include: Vec<String>,
         account_exclude: Vec<String>,
         account_required: Vec<String>,
-    ) -> TransactionsFilterMap {
+        event_type_filter: Option<EventTypeFilter>,
+    ) -> Option<TransactionsFilterMap> {
+        if event_type_filter.is_some()
+            && !event_type_filter.as_ref().unwrap().include_transaction_event()
+        {
+            return None;
+        }
         let mut transactions = HashMap::new();
         transactions.insert(
             "client".to_string(),
@@ -105,7 +128,7 @@ impl SubscriptionManager {
                 account_required,
             },
         );
-        transactions
+        Some(transactions)
     }
 
     /// 获取配置

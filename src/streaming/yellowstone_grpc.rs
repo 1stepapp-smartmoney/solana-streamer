@@ -10,6 +10,7 @@ use crate::common::AnyResult;
 use crate::streaming::common::{
     EventBatchProcessor, MetricsManager, PerformanceMetrics, StreamClientConfig,
 };
+use crate::streaming::event_parser::common::filter::EventTypeFilter;
 use crate::streaming::event_parser::{Protocol, UnifiedEvent};
 use crate::streaming::grpc::{EventPretty, EventProcessor, StreamHandler, SubscriptionManager};
 
@@ -112,13 +113,26 @@ impl YellowstoneGrpc {
         self.config.enable_metrics = enabled;
     }
 
-    /// 简化的即时事件订阅（推荐用于简单场景）
+    /// Simplified immediate event subscription (recommended for simple scenarios)
+    ///
+    /// # Parameters
+    /// * `protocols` - List of protocols to monitor
+    /// * `bot_wallet` - Optional bot wallet address for filtering related transactions
+    /// * `transaction_filter` - Transaction filter specifying accounts to include/exclude
+    /// * `account_filter` - Account filter specifying accounts and owners to monitor
+    /// * `event_filter` - Optional event filter for further event filtering, no filtering if None
+    /// * `commitment` - Optional commitment level, defaults to Confirmed
+    /// * `callback` - Event callback function that receives parsed unified events
+    ///
+    /// # Returns
+    /// Returns `AnyResult<()>`, `Ok(())` on success, error information on failure
     pub async fn subscribe_events_immediate<F>(
         &self,
         protocols: Vec<Protocol>,
         bot_wallet: Option<Pubkey>,
         transaction_filter: TransactionFilter,
         account_filter: AccountFilter,
+        event_type_filter: Option<EventTypeFilter>,
         commitment: Option<CommitmentLevel>,
         callback: F,
     ) -> AnyResult<()>
@@ -135,14 +149,16 @@ impl YellowstoneGrpc {
             transaction_filter.account_exclude,
             transaction_filter.account_required,
         );
-        let accounts = self
-            .subscription_manager
-            .subscribe_with_account_request(account_filter.account, account_filter.owner);
+        let accounts = self.subscription_manager.subscribe_with_account_request(
+            account_filter.account,
+            account_filter.owner,
+            event_type_filter.clone(),
+        );
 
-        // 订阅事件
+        // // 订阅事件
         // let (mut subscribe_tx, mut stream) = self
         //     .subscription_manager
-        //     .subscribe_with_request(transactions, accounts, commitment)
+        //     .subscribe_with_request(transactions, accounts, commitment, event_type_filter.clone())
         //     .await?;
 
         // 创建通道，使用配置中的通道大小
@@ -157,7 +173,7 @@ impl YellowstoneGrpc {
                 let accounts_filter_clone = accounts.clone();
 
                 let (mut subscribe_tx, mut stream) = submanager
-                    .subscribe_with_request(trans_clone, accounts_filter_clone, commitment)
+                    .subscribe_with_request(trans_clone, accounts_filter_clone, commitment, event_type_filter.clone())
                     .await.unwrap();
 
                 while let Some(message) = stream.next().await {
@@ -200,6 +216,7 @@ impl YellowstoneGrpc {
                         &callback,
                         bot_wallet,
                         protocols.clone(),
+                        event_type_filter.clone(),
                     )
                     .await
                 {
@@ -212,13 +229,32 @@ impl YellowstoneGrpc {
         Ok(())
     }
 
-    /// 高级模式订阅（包含批处理和背压处理）
+    /// Advanced event subscription with batch processing and backpressure handling
+    ///
+    /// # Parameters
+    /// * `protocols` - List of protocols to monitor
+    /// * `bot_wallet` - Optional bot wallet address for filtering related transactions
+    /// * `transaction_filter` - Transaction filter specifying accounts to include/exclude
+    /// * `account_filter` - Account filter specifying accounts and owners to monitor
+    /// * `event_filter` - Optional event filter for further event filtering, no filtering if None
+    /// * `commitment` - Optional commitment level, defaults to Confirmed
+    /// * `callback` - Event callback function that receives parsed unified events
+    ///
+    /// # Features
+    /// * Batch processing for improved throughput
+    /// * Backpressure handling to prevent memory overflow
+    /// * Automatic performance monitoring (if enabled)
+    /// * Configurable batch size and timeout
+    ///
+    /// # Returns
+    /// Returns `AnyResult<()>`, `Ok(())` on success, error information on failure
     pub async fn subscribe_events_advanced<F>(
         &self,
         protocols: Vec<Protocol>,
         bot_wallet: Option<Pubkey>,
         transaction_filter: TransactionFilter,
         account_filter: AccountFilter,
+        event_type_filter: Option<EventTypeFilter>,
         commitment: Option<CommitmentLevel>,
         callback: F,
     ) -> AnyResult<()>
@@ -234,15 +270,18 @@ impl YellowstoneGrpc {
             transaction_filter.account_include,
             transaction_filter.account_exclude,
             transaction_filter.account_required,
+            event_type_filter.clone(),
         );
-        let accounts = self
-            .subscription_manager
-            .subscribe_with_account_request(account_filter.account, account_filter.owner);
+        let accounts = self.subscription_manager.subscribe_with_account_request(
+            account_filter.account,
+            account_filter.owner,
+            event_type_filter.clone(),
+        );
 
         // Subscribe to events
         let (mut subscribe_tx, mut stream) = self
             .subscription_manager
-            .subscribe_with_request(transactions, accounts, commitment)
+            .subscribe_with_request(transactions, accounts, commitment, event_type_filter.clone())
             .await?;
 
         // Create channel
@@ -297,6 +336,7 @@ impl YellowstoneGrpc {
                         &mut batch_processor,
                         bot_wallet,
                         protocols.clone(),
+                        event_type_filter.clone(),
                     )
                     .await
                 {
@@ -316,6 +356,10 @@ impl YellowstoneGrpc {
 // 实现 Clone trait 以支持模块间共享
 impl Clone for EventProcessor {
     fn clone(&self) -> Self {
-        Self { metrics_manager: self.metrics_manager.clone(), config: self.config.clone() }
+        Self {
+            metrics_manager: self.metrics_manager.clone(),
+            config: self.config.clone(),
+            parser_cache: self.parser_cache.clone(),
+        }
     }
 }

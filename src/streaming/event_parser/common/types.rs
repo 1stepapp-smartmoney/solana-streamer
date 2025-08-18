@@ -200,6 +200,24 @@ pub enum EventType {
     Unknown,
 }
 
+pub const ACCOUNT_EVENT_TYPES: &[EventType] = &[
+    EventType::AccountRaydiumAmmV4AmmInfo,
+    EventType::AccountPumpSwapGlobalConfig,
+    EventType::AccountPumpSwapPool,
+    EventType::AccountBonkPoolState,
+    EventType::AccountBonkGlobalConfig,
+    EventType::AccountBonkPlatformConfig,
+    EventType::AccountBonkVestingRecord,
+    EventType::AccountPumpFunBondingCurve,
+    EventType::AccountPumpFunGlobal,
+    EventType::AccountRaydiumClmmAmmConfig,
+    EventType::AccountRaydiumClmmPoolState,
+    EventType::AccountRaydiumClmmTickArrayState,
+    EventType::AccountRaydiumCpmmAmmConfig,
+    EventType::AccountRaydiumCpmmPoolState,
+];
+pub const BLOCK_EVENT_TYPES: &[EventType] = &[EventType::BlockMeta];
+
 impl EventType {
     #[allow(clippy::inherent_to_string)]
     pub fn to_string(&self) -> String {

@@ -97,7 +97,7 @@ async fn get_single_transaction_details(signature_str: &str) -> Result<()> {
                 Protocol::RaydiumCpmm,
                 Protocol::RaydiumAmmV4,
             ];
-            let parser: Arc<dyn EventParser> = Arc::new(MutilEventParser::new(protocols));
+            let parser: Arc<dyn EventParser> = Arc::new(MutilEventParser::new(protocols, None));
             let start_time = std::time::Instant::now();
             let events = parser
                 .parse_transaction(
