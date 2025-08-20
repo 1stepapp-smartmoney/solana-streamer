@@ -94,6 +94,62 @@ impl ShredEventProcessor {
         Ok(())
     }
 
+    pub async fn process_transaction_immediate_in_tx_pack<F>(
+        &self,
+        transaction_with_slot: TransactionWithSlot,
+        protocols: Vec<Protocol>,
+        bot_wallet: Option<Pubkey>,
+        event_type_filter: Option<EventTypeFilter>,
+        callback: &F,
+    ) -> AnyResult<()>
+    where
+        F: Fn(Vec<Box<dyn UnifiedEvent>>) + Send + Sync,
+    {
+        let start_time = std::time::Instant::now();
+        self.metrics_manager.add_tx_process_count().await;
+        let program_received_time_ms = chrono::Utc::now().timestamp_millis();
+        let slot = transaction_with_slot.slot;
+        let versioned_tx = transaction_with_slot.transaction;
+        let signature = versioned_tx.signatures[0];
+
+        // 获取缓存的解析器
+        let parser = self.get_or_create_parser(protocols, event_type_filter);
+
+        let all_events = parser
+            .parse_versioned_transaction(
+                &versioned_tx,
+                &signature.to_string(),
+                Some(slot),
+                None,
+                program_received_time_ms,
+                bot_wallet,
+            )
+            .await
+            .unwrap_or_else(|_e| vec![]);
+
+        // 保存事件数量用于日志记录
+        let event_count = all_events.len();
+
+        // 即时处理事件
+        // for event in all_events {
+        //     callback(event);
+        // }
+
+        callback(all_events);
+
+        // 更新性能指标
+        let processing_time = start_time.elapsed();
+        let processing_time_ms = processing_time.as_millis() as f64;
+
+        // 实际调用性能指标更新
+        self.update_metrics(event_count as u64, processing_time_ms).await;
+
+        // 记录慢处理操作
+        self.metrics_manager.log_slow_processing(processing_time_ms, event_count);
+
+        Ok(())
+    }
+
     /// 批处理模式处理单个交易
     pub async fn process_transaction_with_batch<F>(
         &self,

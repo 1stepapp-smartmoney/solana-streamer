@@ -42,7 +42,7 @@ impl ShredStreamGrpc {
             self.process_with_batch(rx, protocols, bot_wallet, event_type_filter, callback).await
         } else {
             // 即时处理模式
-            self.process_immediate_in_tx_pack(stream, tx, rx, protocols, bot_wallet,event_type_filter， callback, tx_pack_callback).await
+            self.process_immediate_in_tx_pack(rx, protocols, bot_wallet, event_type_filter, callback, tx_pack_callback).await
 
         }
     }

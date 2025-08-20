@@ -89,6 +89,7 @@ pub struct BonkPoolCreateEvent {
     pub base_mint_param: MintParams,
     pub curve_param: CurveParams,
     pub vesting_param: VestingParams,
+    pub amm_fee_on: u8,
     #[borsh(skip)]
     pub payer: Pubkey,
     #[borsh(skip)]
@@ -113,7 +114,8 @@ impl_unified_event!(
     config,
     base_mint_param,
     curve_param,
-    vesting_param
+    vesting_param,
+    amm_fee_on
 );
 
 /// Create pool event

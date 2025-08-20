@@ -148,7 +148,9 @@ impl YellowstoneGrpc {
             transaction_filter.account_include,
             transaction_filter.account_exclude,
             transaction_filter.account_required,
+            event_type_filter.clone(),
         );
+
         let accounts = self.subscription_manager.subscribe_with_account_request(
             account_filter.account,
             account_filter.owner,
@@ -167,13 +169,13 @@ impl YellowstoneGrpc {
         // 启动流处理任务
         let backpressure_strategy = self.config.backpressure.strategy;
         let submanager = self.subscription_manager.clone();
+        let filter_clone = event_type_filter.clone();
         tokio::spawn(async move {
             loop {
                 let trans_clone = transactions.clone();
                 let accounts_filter_clone = accounts.clone();
-
                 let (mut subscribe_tx, mut stream) = submanager
-                    .subscribe_with_request(trans_clone, accounts_filter_clone, commitment, event_type_filter.clone())
+                    .subscribe_with_request(trans_clone, accounts_filter_clone, commitment, filter_clone.clone())
                     .await.unwrap();
 
                 while let Some(message) = stream.next().await {
@@ -208,6 +210,7 @@ impl YellowstoneGrpc {
 
         // 即时处理交易，无批处理
         let event_processor = self.event_processor.clone();
+        let filter_clone2 = event_type_filter.clone();
         tokio::spawn(async move {
             while let Some(event_pretty) = rx.next().await {
                 if let Err(e) = event_processor
@@ -216,7 +219,7 @@ impl YellowstoneGrpc {
                         &callback,
                         bot_wallet,
                         protocols.clone(),
-                        event_type_filter.clone(),
+                        filter_clone2.clone(),
                     )
                     .await
                 {
