@@ -28,7 +28,7 @@ pub fn bonding_curve_decode(data: &[u8]) -> Option<BondingCurve> {
     if data.len() < BONDING_CURVE_SIZE {
         return None;
     }
-    borsh::from_slice::<BondingCurve>(&data).ok()
+    borsh::from_slice::<BondingCurve>(&data[..BONDING_CURVE_SIZE]).ok()
 }
 
 pub fn bonding_curve_parser(
@@ -75,7 +75,7 @@ pub fn global_decode(data: &[u8]) -> Option<Global> {
     if data.len() < GLOBAL_SIZE {
         return None;
     }
-    borsh::from_slice::<Global>(&data).ok()
+    borsh::from_slice::<Global>(&data[..GLOBAL_SIZE]).ok()
 }
 
 pub fn global_parser(

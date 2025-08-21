@@ -30,7 +30,7 @@ pub fn global_config_decode(data: &[u8]) -> Option<GlobalConfig> {
     if data.len() < GLOBAL_CONFIG_SIZE {
         return None;
     }
-    borsh::from_slice::<GlobalConfig>(&data).ok()
+    borsh::from_slice::<GlobalConfig>(&data[..GLOBAL_CONFIG_SIZE]).ok()
 }
 
 pub fn global_config_parser(
@@ -72,7 +72,7 @@ pub fn pool_decode(data: &[u8]) -> Option<Pool> {
     if data.len() < POOL_SIZE {
         return None;
     }
-    borsh::from_slice::<Pool>(&data).ok()
+    borsh::from_slice::<Pool>(&data[..POOL_SIZE]).ok()
 }
 
 pub fn pool_parser(

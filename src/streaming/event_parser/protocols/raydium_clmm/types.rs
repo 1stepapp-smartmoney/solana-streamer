@@ -31,7 +31,7 @@ pub struct AmmConfig {
 pub const AMM_CONFIG_SIZE: usize = 1 + 2 + 32 + 4 * 2 + 2 + 4 * 2 + 32 + 8 * 3;
 
 pub fn amm_config_decode(data: &[u8]) -> Option<AmmConfig> {
-    borsh::from_slice::<AmmConfig>(&data).ok()
+    borsh::from_slice::<AmmConfig>(&data[..AMM_CONFIG_SIZE]).ok()
 }
 
 pub fn amm_config_parser(
@@ -116,7 +116,7 @@ pub struct PoolState {
 pub const POOL_STATE_SIZE: usize = 1536;
 
 pub fn pool_state_decode(data: &[u8]) -> Option<PoolState> {
-    borsh::from_slice::<PoolState>(&data).ok()
+    borsh::from_slice::<PoolState>(&data[..POOL_STATE_SIZE]).ok()
 }
 
 pub fn pool_state_parser(
@@ -194,7 +194,7 @@ impl Default for TickArrayState {
 pub const TICK_ARRAY_STATE_SIZE: usize = 10232;
 
 pub fn tick_array_state_decode(data: &[u8]) -> Option<TickArrayState> {
-    borsh::from_slice::<TickArrayState>(&data).ok()
+    borsh::from_slice::<TickArrayState>(&data[..TICK_ARRAY_STATE_SIZE]).ok()
 }
 
 pub fn tick_array_state_parser(

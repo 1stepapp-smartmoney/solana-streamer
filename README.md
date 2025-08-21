@@ -44,14 +44,14 @@ Add the dependency to your `Cargo.toml`:
 
 ```toml
 # Add to your Cargo.toml
-solana-streamer-sdk = { path = "./solana-streamer", version = "0.3.3" }
+solana-streamer-sdk = { path = "./solana-streamer", version = "0.3.5" }
 ```
 
 ### Use crates.io
 
 ```toml
 # Add to your Cargo.toml
-solana-streamer-sdk = "0.3.3"
+solana-streamer-sdk = "0.3.5"
 ```
 
 ## Usage Examples

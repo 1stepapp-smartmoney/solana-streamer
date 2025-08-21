@@ -8,8 +8,10 @@ use crate::streaming::event_parser::{
     common::{read_u64_le, EventMetadata, EventType, ProtocolType},
     core::traits::{EventParser, GenericEventParseConfig, GenericEventParser, UnifiedEvent},
     protocols::pumpswap::{
-        discriminators, PumpSwapBuyEvent, PumpSwapCreatePoolEvent, PumpSwapDepositEvent,
-        PumpSwapSellEvent, PumpSwapWithdrawEvent,
+        discriminators, pump_swap_buy_event_log_decode, pump_swap_create_pool_event_log_decode,
+        pump_swap_deposit_event_log_decode, pump_swap_sell_event_log_decode,
+        pump_swap_withdraw_event_log_decode, PumpSwapBuyEvent, PumpSwapCreatePoolEvent,
+        PumpSwapDepositEvent, PumpSwapSellEvent, PumpSwapWithdrawEvent,
     },
 };
 
@@ -89,16 +91,13 @@ impl PumpSwapEventParser {
         data: &[u8],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        if let Ok(event) = borsh::from_slice::<PumpSwapBuyEvent>(data) {
+        if let Some(event) = pump_swap_buy_event_log_decode(data) {
             let mut metadata = metadata;
             metadata.set_id(format!(
                 "{}-{}-{}-{}",
                 metadata.signature, event.user, event.pool, event.base_amount_out
             ));
-            Some(Box::new(PumpSwapBuyEvent {
-                metadata,
-                ..event
-            }))
+            Some(Box::new(PumpSwapBuyEvent { metadata, ..event }))
         } else {
             None
         }
@@ -109,16 +108,13 @@ impl PumpSwapEventParser {
         data: &[u8],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        if let Ok(event) = borsh::from_slice::<PumpSwapSellEvent>(data) {
+        if let Some(event) = pump_swap_sell_event_log_decode(data) {
             let mut metadata = metadata;
             metadata.set_id(format!(
                 "{}-{}-{}-{}",
                 metadata.signature, event.user, event.pool, event.base_amount_in
             ));
-            Some(Box::new(PumpSwapSellEvent {
-                metadata,
-                ..event
-            }))
+            Some(Box::new(PumpSwapSellEvent { metadata, ..event }))
         } else {
             None
         }
@@ -129,16 +125,13 @@ impl PumpSwapEventParser {
         data: &[u8],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        if let Ok(event) = borsh::from_slice::<PumpSwapCreatePoolEvent>(data) {
+        if let Some(event) = pump_swap_create_pool_event_log_decode(data) {
             let mut metadata = metadata;
             metadata.set_id(format!(
                 "{}-{}-{}-{}",
                 metadata.signature, event.pool, event.creator, event.base_amount_in
             ));
-            Some(Box::new(PumpSwapCreatePoolEvent {
-                metadata,
-                ..event
-            }))
+            Some(Box::new(PumpSwapCreatePoolEvent { metadata, ..event }))
         } else {
             None
         }
@@ -149,16 +142,13 @@ impl PumpSwapEventParser {
         data: &[u8],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        if let Ok(event) = borsh::from_slice::<PumpSwapDepositEvent>(data) {
+        if let Some(event) = pump_swap_deposit_event_log_decode(data) {
             let mut metadata = metadata;
             metadata.set_id(format!(
                 "{}-{}-{}-{}",
                 metadata.signature, event.pool, event.user, event.lp_token_amount_out
             ));
-            Some(Box::new(PumpSwapDepositEvent {
-                metadata,
-                ..event
-            }))
+            Some(Box::new(PumpSwapDepositEvent { metadata, ..event }))
         } else {
             None
         }
@@ -169,16 +159,13 @@ impl PumpSwapEventParser {
         data: &[u8],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        if let Ok(event) = borsh::from_slice::<PumpSwapWithdrawEvent>(data) {
+        if let Some(event) = pump_swap_withdraw_event_log_decode(data) {
             let mut metadata = metadata;
             metadata.set_id(format!(
                 "{}-{}-{}-{}",
                 metadata.signature, event.pool, event.user, event.lp_token_amount_in
             ));
-            Some(Box::new(PumpSwapWithdrawEvent {
-                metadata,
-                ..event
-            }))
+            Some(Box::new(PumpSwapWithdrawEvent { metadata, ..event }))
         } else {
             None
         }

@@ -57,6 +57,15 @@ pub struct PumpSwapBuyEvent {
     pub user_volume_accumulator: Pubkey,
 }
 
+pub const PUMP_SWAP_BUY_EVENT_LOG_SIZE: usize = 385;
+
+pub fn pump_swap_buy_event_log_decode(data: &[u8]) -> Option<PumpSwapBuyEvent> {
+    if data.len() < PUMP_SWAP_BUY_EVENT_LOG_SIZE {
+        return None;
+    }
+    borsh::from_slice::<PumpSwapBuyEvent>(&data[..PUMP_SWAP_BUY_EVENT_LOG_SIZE]).ok()
+}
+
 // 使用宏生成UnifiedEvent实现，指定需要合并的字段
 impl_unified_event!(
     PumpSwapBuyEvent,
@@ -127,6 +136,15 @@ pub struct PumpSwapSellEvent {
     pub coin_creator_vault_authority: Pubkey,
 }
 
+pub const PUMP_SWAP_SELL_EVENT_LOG_SIZE: usize = 352;
+
+pub fn pump_swap_sell_event_log_decode(data: &[u8]) -> Option<PumpSwapSellEvent> {
+    if data.len() < PUMP_SWAP_SELL_EVENT_LOG_SIZE {
+        return None;
+    }
+    borsh::from_slice::<PumpSwapSellEvent>(&data[..PUMP_SWAP_SELL_EVENT_LOG_SIZE]).ok()
+}
+
 // 使用宏生成UnifiedEvent实现，指定需要合并的字段
 impl_unified_event!(
     PumpSwapSellEvent,
@@ -188,6 +206,15 @@ pub struct PumpSwapCreatePoolEvent {
     pub pool_quote_token_account: Pubkey,
 }
 
+pub const PUMP_SWAP_CREATE_POOL_EVENT_LOG_SIZE: usize = 325;
+
+pub fn pump_swap_create_pool_event_log_decode(data: &[u8]) -> Option<PumpSwapCreatePoolEvent> {
+    if data.len() < PUMP_SWAP_CREATE_POOL_EVENT_LOG_SIZE {
+        return None;
+    }
+    borsh::from_slice::<PumpSwapCreatePoolEvent>(&data[..PUMP_SWAP_CREATE_POOL_EVENT_LOG_SIZE]).ok()
+}
+
 impl_unified_event!(
     PumpSwapCreatePoolEvent,
     timestamp,
@@ -243,6 +270,15 @@ pub struct PumpSwapDepositEvent {
     pub pool_quote_token_account: Pubkey,
 }
 
+pub const PUMP_SWAP_DEPOSIT_EVENT_LOG_SIZE: usize = 248;
+
+pub fn pump_swap_deposit_event_log_decode(data: &[u8]) -> Option<PumpSwapDepositEvent> {
+    if data.len() < PUMP_SWAP_DEPOSIT_EVENT_LOG_SIZE {
+        return None;
+    }
+    borsh::from_slice::<PumpSwapDepositEvent>(&data[..PUMP_SWAP_DEPOSIT_EVENT_LOG_SIZE]).ok()
+}
+
 impl_unified_event!(
     PumpSwapDepositEvent,
     timestamp,
@@ -292,6 +328,15 @@ pub struct PumpSwapWithdrawEvent {
     pub pool_base_token_account: Pubkey,
     #[borsh(skip)]
     pub pool_quote_token_account: Pubkey,
+}
+
+pub const PUMP_SWAP_WITHDRAW_EVENT_LOG_SIZE: usize = 248;
+
+pub fn pump_swap_withdraw_event_log_decode(data: &[u8]) -> Option<PumpSwapWithdrawEvent> {
+    if data.len() < PUMP_SWAP_WITHDRAW_EVENT_LOG_SIZE {
+        return None;
+    }
+    borsh::from_slice::<PumpSwapWithdrawEvent>(&data[..PUMP_SWAP_WITHDRAW_EVENT_LOG_SIZE]).ok()
 }
 
 impl_unified_event!(

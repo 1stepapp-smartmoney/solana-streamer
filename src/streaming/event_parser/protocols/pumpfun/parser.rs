@@ -8,7 +8,9 @@ use crate::streaming::event_parser::{
     common::{EventMetadata, EventType, ProtocolType},
     core::traits::{EventParser, GenericEventParseConfig, GenericEventParser, UnifiedEvent},
     protocols::pumpfun::{
-        discriminators, PumpFunCreateTokenEvent, PumpFunMigrateEvent, PumpFunTradeEvent,
+        discriminators, pumpfun_create_token_event_log_decode, pumpfun_migrate_event_log_decode,
+        pumpfun_trade_event_log_decode, PumpFunCreateTokenEvent, PumpFunMigrateEvent,
+        PumpFunTradeEvent,
     },
 };
 
@@ -79,7 +81,7 @@ impl PumpFunEventParser {
         data: &[u8],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        if let Ok(event) = borsh::from_slice::<PumpFunMigrateEvent>(data) {
+        if let Some(event) = pumpfun_migrate_event_log_decode(data) {
             let mut metadata = metadata;
             metadata.set_id(format!("{}-{}-{}", metadata.signature, event.user, event.mint));
             Some(Box::new(PumpFunMigrateEvent { metadata, ..event }))
@@ -93,7 +95,7 @@ impl PumpFunEventParser {
         data: &[u8],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        if let Ok(event) = borsh::from_slice::<PumpFunCreateTokenEvent>(data) {
+        if let Some(event) = pumpfun_create_token_event_log_decode(data) {
             let mut metadata = metadata;
             metadata.set_id(format!(
                 "{}-{}-{}-{}",
@@ -110,9 +112,10 @@ impl PumpFunEventParser {
         data: &[u8],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
+        if let Some(event) = pumpfun_trade_event_log_decode(data) {
 
         let usefuldata = if (data.len()>250) {
-            data[..250].to_vec() 
+            data[..250].to_vec()
         } else {
             data.to_vec()
         }; // 只截取部分字节，防止pump日后再加字段。

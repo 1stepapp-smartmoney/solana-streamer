@@ -28,6 +28,15 @@ pub struct PumpFunCreateTokenEvent {
     pub associated_bonding_curve: Pubkey,
 }
 
+pub const PUMPFUN_CREATE_TOKEN_EVENT_LOG_SIZE: usize = 257;
+
+pub fn pumpfun_create_token_event_log_decode(data: &[u8]) -> Option<PumpFunCreateTokenEvent> {
+    if data.len() < PUMPFUN_CREATE_TOKEN_EVENT_LOG_SIZE {
+        return None;
+    }
+    borsh::from_slice::<PumpFunCreateTokenEvent>(&data[..PUMPFUN_CREATE_TOKEN_EVENT_LOG_SIZE]).ok()
+}
+
 impl_unified_event!(
     PumpFunCreateTokenEvent,
     mint,
@@ -108,6 +117,15 @@ pub struct PumpFunTradeEvent {
     pub user_volume_accumulator: Pubkey,
 }
 
+pub const PUMPFUN_TRADE_EVENT_LOG_SIZE: usize = 250;
+
+pub fn pumpfun_trade_event_log_decode(data: &[u8]) -> Option<PumpFunTradeEvent> {
+    if data.len() < PUMPFUN_TRADE_EVENT_LOG_SIZE {
+        return None;
+    }
+    borsh::from_slice::<PumpFunTradeEvent>(&data[..PUMPFUN_TRADE_EVENT_LOG_SIZE]).ok()
+}
+
 impl_unified_event!(
     PumpFunTradeEvent,
     mint,
@@ -182,6 +200,15 @@ pub struct PumpFunMigrateEvent {
     pub event_authority: Pubkey,
     #[borsh(skip)]
     pub program: Pubkey,
+}
+
+pub const PUMPFUN_MIGRATE_EVENT_LOG_SIZE: usize = 160;
+
+pub fn pumpfun_migrate_event_log_decode(data: &[u8]) -> Option<PumpFunMigrateEvent> {
+    if data.len() < PUMPFUN_MIGRATE_EVENT_LOG_SIZE {
+        return None;
+    }
+    borsh::from_slice::<PumpFunMigrateEvent>(&data[..PUMPFUN_MIGRATE_EVENT_LOG_SIZE]).ok()
 }
 
 impl_unified_event!(

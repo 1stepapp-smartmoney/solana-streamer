@@ -3,7 +3,9 @@ use crate::streaming::event_parser::common::EventMetadata;
 use crate::streaming::event_parser::protocols::bonk::types::{
     CurveParams, MintParams, PoolStatus, TradeDirection, VestingParams,
 };
-use crate::streaming::event_parser::protocols::bonk::{GlobalConfig, PlatformConfig, PoolState};
+use crate::streaming::event_parser::protocols::bonk::{
+    AmmFeeOn, GlobalConfig, PlatformConfig, PoolState,
+};
 use borsh::BorshDeserialize;
 use serde::{Deserialize, Serialize};
 use solana_sdk::pubkey::Pubkey;
@@ -25,9 +27,11 @@ pub struct BonkTradeEvent {
     pub amount_out: u64,
     pub protocol_fee: u64,
     pub platform_fee: u64,
+    pub creator_fee: u64,
     pub share_fee: u64,
     pub trade_direction: TradeDirection,
     pub pool_status: PoolStatus,
+    pub exact_in: bool,
     #[borsh(skip)]
     pub minimum_amount_out: u64,
     #[borsh(skip)]
@@ -58,6 +62,15 @@ pub struct BonkTradeEvent {
     pub is_bot: bool,
 }
 
+pub const BONK_TRADE_EVENT_LOG_SIZE: usize = 32 + 8 * 13 + 1 + 1 + 1;
+
+pub fn bonk_trade_event_log_decode(data: &[u8]) -> Option<BonkTradeEvent> {
+    if data.len() < BONK_TRADE_EVENT_LOG_SIZE {
+        return None;
+    }
+    borsh::from_slice::<BonkTradeEvent>(&data[..BONK_TRADE_EVENT_LOG_SIZE]).ok()
+}
+
 // Macro to generate UnifiedEvent implementation, specifying the fields to be merged
 impl_unified_event!(
     BonkTradeEvent,
@@ -73,9 +86,11 @@ impl_unified_event!(
     amount_out,
     protocol_fee,
     platform_fee,
+    creator_fee,
     share_fee,
     trade_direction,
-    pool_status
+    pool_status,
+    exact_in
 );
 
 /// Create pool event
@@ -89,7 +104,7 @@ pub struct BonkPoolCreateEvent {
     pub base_mint_param: MintParams,
     pub curve_param: CurveParams,
     pub vesting_param: VestingParams,
-    pub amm_fee_on: u8,
+    pub amm_fee_on: Option<AmmFeeOn>,
     #[borsh(skip)]
     pub payer: Pubkey,
     #[borsh(skip)]
@@ -104,6 +119,15 @@ pub struct BonkPoolCreateEvent {
     pub global_config: Pubkey,
     #[borsh(skip)]
     pub platform_config: Pubkey,
+}
+
+pub const BONK_POOL_CREATE_EVENT_LOG_SIZE: usize = 256;
+
+pub fn bonk_pool_create_event_log_decode(data: &[u8]) -> Option<BonkPoolCreateEvent> {
+    if data.len() < BONK_POOL_CREATE_EVENT_LOG_SIZE {
+        return None;
+    }
+    borsh::from_slice::<BonkPoolCreateEvent>(&data[..BONK_POOL_CREATE_EVENT_LOG_SIZE]).ok()
 }
 
 // Macro to generate UnifiedEvent implementation, specifying the fields to be merged
@@ -289,6 +313,7 @@ pub mod discriminators {
     pub const SELL_EXACT_IN: &[u8] = &[149, 39, 222, 155, 211, 124, 152, 26];
     pub const SELL_EXACT_OUT: &[u8] = &[95, 200, 71, 34, 8, 9, 11, 166];
     pub const INITIALIZE: &[u8] = &[175, 175, 109, 31, 13, 152, 155, 237];
+    pub const INITIALIZE_V2: &[u8] = &[67, 153, 175, 39, 218, 16, 38, 32];
     pub const MIGRATE_TO_AMM: &[u8] = &[207, 82, 192, 145, 254, 207, 145, 223];
     pub const MIGRATE_TO_CP_SWAP: &[u8] = &[136, 92, 200, 103, 28, 218, 144, 140];
 

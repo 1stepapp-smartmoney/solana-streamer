@@ -30,7 +30,7 @@ pub struct AmmConfig {
 pub const AMM_CONFIG_SIZE: usize = 228;
 
 pub fn amm_config_decode(data: &[u8]) -> Option<AmmConfig> {
-    borsh::from_slice::<AmmConfig>(&data).ok()
+    borsh::from_slice::<AmmConfig>(&data[..AMM_CONFIG_SIZE]).ok()
 }
 
 pub fn amm_config_parser(
@@ -85,7 +85,7 @@ pub struct PoolState {
 pub const POOL_STATE_SIZE: usize = 629;
 
 pub fn pool_state_decode(data: &[u8]) -> Option<PoolState> {
-    borsh::from_slice::<PoolState>(&data).ok()
+    borsh::from_slice::<PoolState>(&data[..POOL_STATE_SIZE]).ok()
 }
 
 pub fn pool_state_parser(

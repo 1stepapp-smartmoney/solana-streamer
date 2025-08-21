@@ -5,7 +5,9 @@ use solana_sdk::pubkey::Pubkey;
 use crate::streaming::{
     event_parser::{
         common::EventMetadata,
-        protocols::bonk::{BonkGlobalConfigAccountEvent, BonkPlatformConfigAccountEvent, BonkPoolStateAccountEvent},
+        protocols::bonk::{
+            BonkGlobalConfigAccountEvent, BonkPlatformConfigAccountEvent, BonkPoolStateAccountEvent,
+        },
         UnifiedEvent,
     },
     grpc::AccountPretty,
@@ -39,6 +41,13 @@ pub struct VestingParams {
     pub total_locked_amount: u64,
     pub cliff_period: u64,
     pub unlock_period: u64,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
+pub enum AmmFeeOn {
+    #[default]
+    QuoteToken,
+    BothToken,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
@@ -120,7 +129,7 @@ pub fn pool_state_decode(data: &[u8]) -> Option<PoolState> {
     if data.len() < POOL_STATE_SIZE {
         return None;
     }
-    borsh::from_slice::<PoolState>(&data).ok()
+    borsh::from_slice::<PoolState>(&data[..POOL_STATE_SIZE]).ok()
 }
 
 pub fn pool_state_parser(
@@ -168,7 +177,7 @@ pub fn global_config_decode(data: &[u8]) -> Option<GlobalConfig> {
     if data.len() < GLOBAL_CONFIG_SIZE {
         return None;
     }
-    borsh::from_slice::<GlobalConfig>(&data).ok()
+    borsh::from_slice::<GlobalConfig>(&data[..GLOBAL_CONFIG_SIZE]).ok()
 }
 
 pub fn global_config_parser(
@@ -211,7 +220,7 @@ pub fn platform_config_decode(data: &[u8]) -> Option<PlatformConfig> {
     if data.len() < PLATFORM_CONFIG_SIZE {
         return None;
     }
-    borsh::from_slice::<PlatformConfig>(&data).ok()
+    borsh::from_slice::<PlatformConfig>(&data[..PLATFORM_CONFIG_SIZE]).ok()
 }
 
 pub fn platform_config_parser(

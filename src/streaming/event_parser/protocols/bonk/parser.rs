@@ -8,9 +8,7 @@ use crate::streaming::event_parser::{
     common::{utils::*, EventMetadata, EventType, ProtocolType},
     core::traits::{EventParser, GenericEventParseConfig, GenericEventParser, UnifiedEvent},
     protocols::bonk::{
-        discriminators, BonkMigrateToAmmEvent, BonkMigrateToCpswapEvent, BonkPoolCreateEvent,
-        BonkTradeEvent, ConstantCurve, CurveParams, FixedCurve, LinearCurve, MintParams,
-        TradeDirection, VestingParams,
+        bonk_pool_create_event_log_decode, bonk_trade_event_log_decode, discriminators, AmmFeeOn, BonkMigrateToAmmEvent, BonkMigrateToCpswapEvent, BonkPoolCreateEvent, BonkTradeEvent, ConstantCurve, CurveParams, FixedCurve, LinearCurve, MintParams, TradeDirection, VestingParams
     },
 };
 
@@ -81,6 +79,15 @@ impl BonkEventParser {
             GenericEventParseConfig {
                 program_id: BONK_PROGRAM_ID,
                 protocol_type: ProtocolType::Bonk,
+                inner_instruction_discriminator: discriminators::POOL_CREATE_EVENT,
+                instruction_discriminator: discriminators::INITIALIZE_V2,
+                event_type: EventType::BonkInitializeV2,
+                inner_instruction_parser: Some(Self::parse_pool_create_inner_instruction),
+                instruction_parser: Some(Self::parse_initialize_v2_instruction),
+            },
+            GenericEventParseConfig {
+                program_id: BONK_PROGRAM_ID,
+                protocol_type: ProtocolType::Bonk,
                 inner_instruction_discriminator: "",
                 instruction_discriminator: discriminators::MIGRATE_TO_AMM,
                 event_type: EventType::BonkMigrateToAmm,
@@ -108,7 +115,7 @@ impl BonkEventParser {
         data: &[u8],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        if let Ok(event) = borsh::from_slice::<BonkPoolCreateEvent>(data) {
+        if let Some(event) = bonk_pool_create_event_log_decode(data) {
             let mut metadata = metadata;
             metadata.set_id(metadata.signature.to_string());
             Some(Box::new(BonkPoolCreateEvent { metadata, ..event }))
@@ -122,7 +129,7 @@ impl BonkEventParser {
         data: &[u8],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        if let Ok(event) = borsh::from_slice::<BonkTradeEvent>(data) {
+        if let Some(event) = bonk_trade_event_log_decode(data) {
             let mut metadata = metadata;
             metadata.set_id(format!("{}-{}", metadata.signature, event.pool_state));
             if metadata.event_type == EventType::BonkBuyExactIn
@@ -320,6 +327,48 @@ impl BonkEventParser {
             base_mint_param,
             curve_param,
             vesting_param,
+            ..Default::default()
+        }))
+    }
+
+    /// Parse initialize event
+    fn parse_initialize_v2_instruction(
+        data: &[u8],
+        accounts: &[Pubkey],
+        metadata: EventMetadata,
+    ) -> Option<Box<dyn UnifiedEvent>> {
+        if data.len() < 24 {
+            return None;
+        }
+
+        let mut offset = 0;
+        let base_mint_param = Self::parse_mint_params(data, &mut offset)?;
+        let curve_param = Self::parse_curve_params(data, &mut offset)?;
+        let vesting_param = Self::parse_vesting_params(data, &mut offset)?;
+        let amm_fee_on = data[offset];
+
+        let mut metadata = metadata;
+        metadata.set_id(metadata.signature.to_string());
+
+        Some(Box::new(BonkPoolCreateEvent {
+            metadata,
+            payer: accounts[0],
+            creator: accounts[1],
+            global_config: accounts[2],
+            platform_config: accounts[3],
+            pool_state: accounts[5],
+            base_mint: accounts[6],
+            quote_mint: accounts[7],
+            base_vault: accounts[8],
+            quote_vault: accounts[9],
+            base_mint_param,
+            curve_param,
+            vesting_param,
+            amm_fee_on: if amm_fee_on == 0 {
+                Some(AmmFeeOn::QuoteToken)
+            } else {
+                Some(AmmFeeOn::BothToken)
+            },
             ..Default::default()
         }))
     }
