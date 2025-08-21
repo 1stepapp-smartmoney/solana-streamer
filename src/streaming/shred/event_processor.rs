@@ -1,6 +1,6 @@
 use solana_sdk::pubkey::Pubkey;
 use std::sync::{Arc, Mutex};
-
+use anyhow::Error;
 use crate::common::AnyResult;
 use crate::streaming::common::{
     EventBatchProcessor, MetricsEventType, MetricsManager, StreamClientConfig,
@@ -56,6 +56,9 @@ impl ShredEventProcessor {
         let program_received_time_ms = chrono::Utc::now().timestamp_millis();
         let slot = transaction_with_slot.slot;
         let versioned_tx = transaction_with_slot.transaction;
+        if (versioned_tx.signatures.len() == 0) {
+            return Err(Error::msg("Malformed Transaction has no signatures"));
+        }
         let signature = versioned_tx.signatures[0];
 
         // 获取缓存的解析器
@@ -110,6 +113,9 @@ impl ShredEventProcessor {
         let program_received_time_ms = chrono::Utc::now().timestamp_millis();
         let slot = transaction_with_slot.slot;
         let versioned_tx = transaction_with_slot.transaction;
+        if (versioned_tx.signatures.len() == 0) {
+            return Err(Error::msg("Malformed Transaction has no signatures"));
+        }
         let signature = versioned_tx.signatures[0];
 
         // 获取缓存的解析器
