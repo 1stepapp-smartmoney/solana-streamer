@@ -156,7 +156,7 @@ impl ShredStreamGrpc {
         event_type_filter: Option<EventTypeFilter>,
         callback: F,
         tx_pack_callback: Option<FP>,
-    ) -> AnyResult<()>
+    ) -> AnyResult<tokio::task::JoinHandle<()>>
     where
         F: Fn(Box<dyn UnifiedEvent>) + Send + Sync + 'static,
         FP: Fn(Vec<Box<dyn UnifiedEvent>>) + Send + Sync + 'static,
@@ -167,41 +167,43 @@ impl ShredStreamGrpc {
         let event_processor =
             ShredEventProcessor::new(self.metrics_manager.clone(), self.config.clone());
 
-        let self_clone = self.clone();
-        if let Some(pack_callback) = tx_pack_callback {
-            while let Some(transaction_with_slot) = rx.next().await {
-                if let Err(e) = event_processor
-                    .process_transaction_immediate_in_tx_pack(
-                        transaction_with_slot,
-                        protocols.clone(),
-                        bot_wallet,
-                        event_type_filter.clone(),
-                        &pack_callback,
-                    )
-                    .await
-                {
-                    log::error!("Error processing transaction: {e:?}");
+        let event_handle = tokio::spawn(async move {
+            if let Some(pack_callback) = tx_pack_callback {
+                while let Some(transaction_with_slot) = rx.next().await {
+                    if let Err(e) = event_processor
+                        .process_transaction_immediate_in_tx_pack(
+                            transaction_with_slot,
+                            protocols.clone(),
+                            bot_wallet,
+                            event_type_filter.clone(),
+                            &pack_callback,
+                        )
+                        .await
+                    {
+                        log::error!("Error processing transaction: {e:?}");
+                    }
                 }
+
+            } else {
+                while let Some(transaction_with_slot) = rx.next().await {
+                    if let Err(e) = event_processor
+                        .process_transaction_immediate(
+                            transaction_with_slot,
+                            protocols.clone(),
+                            bot_wallet,
+                            event_type_filter.clone(),
+                            &callback,
+                        )
+                        .await
+                    {
+                        log::error!("Error processing transaction: {e:?}");
+                    }
+                }
+
             }
 
-        } else {
-            while let Some(transaction_with_slot) = rx.next().await {
-                if let Err(e) = event_processor
-                    .process_transaction_immediate(
-                        transaction_with_slot,
-                        protocols.clone(),
-                        bot_wallet,
-                        event_type_filter.clone(),
-                        &callback,
-                    )
-                    .await
-                {
-                    log::error!("Error processing transaction: {e:?}");
-                }
-            }
-
-        }
-        Ok(())
+        });
+        Ok(event_handle)
     }
 
 }
