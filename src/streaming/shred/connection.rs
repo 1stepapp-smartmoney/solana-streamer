@@ -3,10 +3,10 @@ use tokio::sync::Mutex;
 use tonic::transport::Channel;
 
 use crate::common::AnyResult;
-use crate::streaming::common::{
-    MetricsManager, PerformanceMetrics, StreamClientConfig,
-};
 use crate::protos::shredstream::shredstream_proxy_client::ShredstreamProxyClient;
+use crate::streaming::common::{
+    MetricsManager, PerformanceMetrics, StreamClientConfig, SubscriptionHandle,
+};
 
 /// ShredStream gRPC 客户端
 #[derive(Clone)]
@@ -15,6 +15,7 @@ pub struct ShredStreamGrpc {
     pub config: StreamClientConfig,
     pub metrics: Arc<Mutex<PerformanceMetrics>>,
     pub metrics_manager: MetricsManager,
+    pub subscription_handle: Arc<Mutex<Option<SubscriptionHandle>>>,
 }
 
 impl ShredStreamGrpc {
@@ -28,18 +29,16 @@ impl ShredStreamGrpc {
         let shredstream_client = ShredstreamProxyClient::connect(endpoint.clone()).await?;
         let metrics = Arc::new(Mutex::new(PerformanceMetrics::new()));
         let config_arc = Arc::new(config.clone());
-        
-        let metrics_manager = MetricsManager::new(
-            metrics.clone(), 
-            config_arc, 
-            "ShredStream".to_string()
-        );
-        
+
+        let metrics_manager =
+            MetricsManager::new(metrics.clone(), config_arc, "ShredStream".to_string());
+
         Ok(Self {
             shredstream_client: Arc::new(shredstream_client),
             config,
             metrics,
             metrics_manager,
+            subscription_handle: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -81,5 +80,13 @@ impl ShredStreamGrpc {
     /// 启动自动性能监控任务
     pub async fn start_auto_metrics_monitoring(&self) {
         self.metrics_manager.start_auto_monitoring().await;
+    }
+
+    /// 停止当前订阅
+    pub async fn stop(&self) {
+        let mut handle_guard = self.subscription_handle.lock().await;
+        if let Some(handle) = handle_guard.take() {
+            handle.stop();
+        }
     }
 }

@@ -3,9 +3,11 @@ pub mod config;
 pub mod metrics;
 pub mod batch;
 pub mod constants;
+pub mod subscription;
 
 // 重新导出主要类型
 pub use config::*;
 pub use metrics::*;
 pub use batch::*;
 pub use constants::*;
+pub use subscription::*;

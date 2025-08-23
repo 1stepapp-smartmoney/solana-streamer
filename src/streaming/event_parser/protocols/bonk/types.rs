@@ -136,6 +136,9 @@ pub fn pool_state_parser(
     account: &AccountPretty,
     metadata: EventMetadata,
 ) -> Option<Box<dyn UnifiedEvent>> {
+    if account.data.len() < POOL_STATE_SIZE + 8 {
+        return None;
+    }
     if let Some(pool_state) = pool_state_decode(&account.data[8..POOL_STATE_SIZE + 8]) {
         Some(Box::new(BonkPoolStateAccountEvent {
             metadata,
@@ -184,6 +187,9 @@ pub fn global_config_parser(
     account: &AccountPretty,
     metadata: EventMetadata,
 ) -> Option<Box<dyn UnifiedEvent>> {
+    if account.data.len() < GLOBAL_CONFIG_SIZE + 8 {
+        return None;
+    }
     if let Some(global_config) = global_config_decode(&account.data[8..GLOBAL_CONFIG_SIZE + 8]) {
         Some(Box::new(BonkGlobalConfigAccountEvent {
             metadata,
@@ -227,6 +233,9 @@ pub fn platform_config_parser(
     account: &AccountPretty,
     metadata: EventMetadata,
 ) -> Option<Box<dyn UnifiedEvent>> {
+    if account.data.len() < PLATFORM_CONFIG_SIZE + 8 {
+        return None;
+    }
     if let Some(platform_config) =
         platform_config_decode(&account.data[8..PLATFORM_CONFIG_SIZE + 8])
     {

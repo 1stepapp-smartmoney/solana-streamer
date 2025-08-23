@@ -30,6 +30,9 @@ pub struct AmmConfig {
 pub const AMM_CONFIG_SIZE: usize = 228;
 
 pub fn amm_config_decode(data: &[u8]) -> Option<AmmConfig> {
+    if data.len() < AMM_CONFIG_SIZE {
+        return None;
+    }
     borsh::from_slice::<AmmConfig>(&data[..AMM_CONFIG_SIZE]).ok()
 }
 
@@ -37,7 +40,7 @@ pub fn amm_config_parser(
     account: &AccountPretty,
     metadata: EventMetadata,
 ) -> Option<Box<dyn UnifiedEvent>> {
-    if account.data.len() < AMM_CONFIG_SIZE {
+    if account.data.len() < AMM_CONFIG_SIZE + 8 {
         return None;
     }
     if let Some(amm_config) = amm_config_decode(&account.data[8..AMM_CONFIG_SIZE + 8]) {
@@ -85,6 +88,9 @@ pub struct PoolState {
 pub const POOL_STATE_SIZE: usize = 629;
 
 pub fn pool_state_decode(data: &[u8]) -> Option<PoolState> {
+    if data.len() < POOL_STATE_SIZE {
+        return None;
+    }
     borsh::from_slice::<PoolState>(&data[..POOL_STATE_SIZE]).ok()
 }
 
@@ -92,7 +98,7 @@ pub fn pool_state_parser(
     account: &AccountPretty,
     metadata: EventMetadata,
 ) -> Option<Box<dyn UnifiedEvent>> {
-    if account.data.len() < POOL_STATE_SIZE {
+    if account.data.len() < POOL_STATE_SIZE + 8 {
         return None;
     }
     if let Some(pool_state) = pool_state_decode(&account.data[8..POOL_STATE_SIZE + 8]) {

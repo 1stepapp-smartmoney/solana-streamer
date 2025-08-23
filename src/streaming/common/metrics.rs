@@ -199,14 +199,14 @@ impl MetricsManager {
     }
 
     /// 启动自动性能监控任务
-    pub async fn start_auto_monitoring(&self) {
+    pub async fn start_auto_monitoring(&self) -> Option<tokio::task::JoinHandle<()>> {
         // 检查是否启用性能监控
         if !self.config.enable_metrics {
-            return; // 如果未启用性能监控，不启动监控任务
+            return None; // 如果未启用性能监控，不启动监控任务
         }
 
         let metrics_manager = self.clone();
-        tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(
                 DEFAULT_METRICS_PRINT_INTERVAL_SECONDS,
             ));
@@ -215,6 +215,7 @@ impl MetricsManager {
                 metrics_manager.print_metrics().await;
             }
         });
+        Some(handle)
     }
 
     /// 更新处理次数

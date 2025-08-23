@@ -156,7 +156,7 @@ impl BonkEventParser {
         accounts: &[Pubkey],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        if data.len() < 16 || accounts.len() < 11 {
+        if data.len() < 16 || accounts.len() < 18 {
             return None;
         }
 
@@ -173,6 +173,8 @@ impl BonkEventParser {
             minimum_amount_out,
             share_fee_rate,
             payer: accounts[0],
+            global_config: accounts[2],
+            platform_config: accounts[3],
             pool_state: accounts[4],
             user_base_token: accounts[5],
             user_quote_token: accounts[6],
@@ -182,6 +184,9 @@ impl BonkEventParser {
             quote_token_mint: accounts[10],
             base_token_program: accounts[11],
             quote_token_program: accounts[12],
+            system_program: accounts[15],
+            platform_associated_account: accounts[16],
+            creator_associated_account: accounts[17],
             trade_direction: TradeDirection::Buy,
             ..Default::default()
         }))
@@ -192,7 +197,7 @@ impl BonkEventParser {
         accounts: &[Pubkey],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        if data.len() < 16 || accounts.len() < 11 {
+        if data.len() < 16 || accounts.len() < 18 {
             return None;
         }
 
@@ -209,6 +214,8 @@ impl BonkEventParser {
             maximum_amount_in,
             share_fee_rate,
             payer: accounts[0],
+            global_config: accounts[2],
+            platform_config: accounts[3],
             pool_state: accounts[4],
             user_base_token: accounts[5],
             user_quote_token: accounts[6],
@@ -218,6 +225,9 @@ impl BonkEventParser {
             quote_token_mint: accounts[10],
             base_token_program: accounts[11],
             quote_token_program: accounts[12],
+            system_program: accounts[15],
+            platform_associated_account: accounts[16],
+            creator_associated_account: accounts[17],
             trade_direction: TradeDirection::Buy,
             ..Default::default()
         }))
@@ -228,7 +238,7 @@ impl BonkEventParser {
         accounts: &[Pubkey],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        if data.len() < 16 || accounts.len() < 11 {
+        if data.len() < 16 || accounts.len() < 18 {
             return None;
         }
 
@@ -245,6 +255,8 @@ impl BonkEventParser {
             minimum_amount_out,
             share_fee_rate,
             payer: accounts[0],
+            global_config: accounts[2],
+            platform_config: accounts[3],
             pool_state: accounts[4],
             user_base_token: accounts[5],
             user_quote_token: accounts[6],
@@ -254,6 +266,9 @@ impl BonkEventParser {
             quote_token_mint: accounts[10],
             base_token_program: accounts[11],
             quote_token_program: accounts[12],
+            system_program: accounts[15],
+            platform_associated_account: accounts[16],
+            creator_associated_account: accounts[17],
             trade_direction: TradeDirection::Sell,
             ..Default::default()
         }))
@@ -264,7 +279,7 @@ impl BonkEventParser {
         accounts: &[Pubkey],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        if data.len() < 16 || accounts.len() < 11 {
+        if data.len() < 16 || accounts.len() < 18 {
             return None;
         }
 
@@ -281,6 +296,8 @@ impl BonkEventParser {
             maximum_amount_in,
             share_fee_rate,
             payer: accounts[0],
+            global_config: accounts[2],
+            platform_config: accounts[3],
             pool_state: accounts[4],
             user_base_token: accounts[5],
             user_quote_token: accounts[6],
@@ -290,6 +307,9 @@ impl BonkEventParser {
             quote_token_mint: accounts[10],
             base_token_program: accounts[11],
             quote_token_program: accounts[12],
+            system_program: accounts[15],
+            platform_associated_account: accounts[16],
+            creator_associated_account: accounts[17],
             trade_direction: TradeDirection::Sell,
             ..Default::default()
         }))

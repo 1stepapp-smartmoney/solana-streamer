@@ -8,7 +8,7 @@ use yellowstone_grpc_proto::geyser::CommitmentLevel;
 
 use crate::common::AnyResult;
 use crate::streaming::common::{
-    EventBatchProcessor, MetricsManager, PerformanceMetrics, StreamClientConfig,
+    EventBatchProcessor, MetricsManager, PerformanceMetrics, StreamClientConfig, SubscriptionHandle,
 };
 use crate::streaming::event_parser::common::filter::EventTypeFilter;
 use crate::streaming::event_parser::{Protocol, UnifiedEvent};
@@ -27,7 +27,6 @@ pub struct AccountFilter {
     pub owner: Vec<String>,
 }
 
-#[derive(Clone)]
 pub struct YellowstoneGrpc {
     pub endpoint: String,
     pub x_token: Option<String>,
@@ -36,6 +35,7 @@ pub struct YellowstoneGrpc {
     pub subscription_manager: SubscriptionManager,
     pub metrics_manager: MetricsManager,
     pub event_processor: EventProcessor,
+    pub subscription_handle: Arc<Mutex<Option<SubscriptionHandle>>>,
 }
 
 impl YellowstoneGrpc {
@@ -68,6 +68,7 @@ impl YellowstoneGrpc {
             subscription_manager,
             metrics_manager,
             event_processor,
+            subscription_handle: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -113,6 +114,14 @@ impl YellowstoneGrpc {
         self.config.enable_metrics = enabled;
     }
 
+    /// 停止当前订阅
+    pub async fn stop(&self) {
+        let mut handle_guard = self.subscription_handle.lock().await;
+        if let Some(handle) = handle_guard.take() {
+            handle.stop();
+        }
+    }
+
     /// Simplified immediate event subscription (recommended for simple scenarios)
     ///
     /// # Parameters
@@ -139,9 +148,13 @@ impl YellowstoneGrpc {
     where
         F: Fn(Box<dyn UnifiedEvent>) + Send + Sync + 'static,
     {
+        // 如果已有活跃订阅，先停止它
+        self.stop().await;
+
+        let mut metrics_handle = None;
         // 启动自动性能监控（如果启用）
         if self.config.enable_metrics {
-            self.metrics_manager.start_auto_monitoring().await;
+            metrics_handle = self.metrics_manager.start_auto_monitoring().await;
         }
 
         let transactions = self.subscription_manager.get_subscribe_request_filter(
@@ -150,7 +163,6 @@ impl YellowstoneGrpc {
             transaction_filter.account_required,
             event_type_filter.clone(),
         );
-
         let accounts = self.subscription_manager.subscribe_with_account_request(
             account_filter.account,
             account_filter.owner,
@@ -170,7 +182,7 @@ impl YellowstoneGrpc {
         let backpressure_strategy = self.config.backpressure.strategy;
         let submanager = self.subscription_manager.clone();
         let filter_clone = event_type_filter.clone();
-        tokio::spawn(async move {
+        let stream_handle = tokio::spawn(async move {
             loop {
                 let trans_clone = transactions.clone();
                 let accounts_filter_clone = accounts.clone();
@@ -211,7 +223,7 @@ impl YellowstoneGrpc {
         // 即时处理交易，无批处理
         let event_processor = self.event_processor.clone();
         let filter_clone2 = event_type_filter.clone();
-        tokio::spawn(async move {
+        let event_handle = tokio::spawn(async move {
             while let Some(event_pretty) = rx.next().await {
                 if let Err(e) = event_processor
                     .process_event_transaction_with_metrics(
@@ -229,6 +241,12 @@ impl YellowstoneGrpc {
         });
 
         //tokio::signal::ctrl_c().await?;
+        // 保存订阅句柄
+        let subscription_handle =
+            SubscriptionHandle::new(stream_handle, event_handle, metrics_handle);
+        let mut handle_guard = self.subscription_handle.lock().await;
+        *handle_guard = Some(subscription_handle);
+
         Ok(())
     }
 
@@ -264,9 +282,13 @@ impl YellowstoneGrpc {
     where
         F: Fn(Box<dyn UnifiedEvent>) + Send + Sync + 'static,
     {
+        // 如果已有活跃订阅，先停止它
+        self.stop().await;
+
+        let mut metrics_handle = None;
         // 启动自动性能监控（如果启用）
         if self.config.enable_metrics {
-            self.metrics_manager.start_auto_monitoring().await;
+            metrics_handle = self.metrics_manager.start_auto_monitoring().await;
         }
 
         let transactions = self.subscription_manager.get_subscribe_request_filter(
@@ -305,7 +327,7 @@ impl YellowstoneGrpc {
 
         // Start task to process the stream
         let backpressure_strategy = self.config.backpressure.strategy;
-        tokio::spawn(async move {
+        let stream_handle = tokio::spawn(async move {
             while let Some(message) = stream.next().await {
                 match message {
                     Ok(msg) => {
@@ -331,7 +353,7 @@ impl YellowstoneGrpc {
 
         // Process transactions with batch processing
         let event_processor = self.event_processor.clone();
-        tokio::spawn(async move {
+        let event_handle = tokio::spawn(async move {
             while let Some(event_pretty) = rx.next().await {
                 if let Err(e) = event_processor
                     .process_event_transaction_with_batch(
@@ -351,8 +373,29 @@ impl YellowstoneGrpc {
             batch_processor.flush();
         });
 
-        tokio::signal::ctrl_c().await?;
+        // 保存订阅句柄
+        let subscription_handle =
+            SubscriptionHandle::new(stream_handle, event_handle, metrics_handle);
+        let mut handle_guard = self.subscription_handle.lock().await;
+        *handle_guard = Some(subscription_handle);
+
         Ok(())
+    }
+}
+
+// 实现 Clone trait 以支持模块间共享
+impl Clone for YellowstoneGrpc {
+    fn clone(&self) -> Self {
+        Self {
+            endpoint: self.endpoint.clone(),
+            x_token: self.x_token.clone(),
+            config: self.config.clone(),
+            metrics: self.metrics.clone(),
+            subscription_manager: self.subscription_manager.clone(),
+            metrics_manager: self.metrics_manager.clone(),
+            event_processor: self.event_processor.clone(),
+            subscription_handle: self.subscription_handle.clone(), // 共享同一个 Arc<Mutex<>>
+        }
     }
 }
 

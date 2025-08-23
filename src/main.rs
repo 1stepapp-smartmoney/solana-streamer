@@ -130,6 +130,16 @@ async fn test_grpc() -> Result<(), Box<dyn std::error::Error>> {
     )
     .await?;
 
+    // 支持 stop 方法，测试代码 -  异步1000秒之后停止
+    let grpc_clone = grpc.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(1000)).await;
+        grpc_clone.stop().await;
+    });
+
+    println!("Waiting for Ctrl+C to stop...");
+    tokio::signal::ctrl_c().await?;
+
     Ok(())
 }
 
@@ -162,6 +172,16 @@ async fn test_shreds() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Listening for events, press Ctrl+C to stop...");
     shred_stream.shredstream_subscribe::<_, fn(Vec<Box<dyn UnifiedEvent>>)>(protocols, None,event_type_filter, callback,None).await?;
+
+    // 支持 stop 方法，测试代码 - 异步1000秒之后停止
+    let shred_clone = shred_stream.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(1000)).await;
+        shred_clone.stop().await;
+    });
+
+    println!("Waiting for Ctrl+C to stop...");
+    tokio::signal::ctrl_c().await?;
 
     Ok(())
 }

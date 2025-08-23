@@ -28,6 +28,7 @@ A lightweight Rust library for real-time event streaming from Solana DEX trading
 15. **Backpressure Handling**: Supports blocking, dropping, retrying, ordered, and other backpressure strategies
 16. **Runtime Configuration Updates**: Supports dynamic configuration parameter updates at runtime
 17. **Full Function Performance Monitoring**: All subscribe_events functions support performance monitoring, automatically collecting and reporting performance metrics
+18. **Graceful Shutdown**: Support for programmatic stop() method for clean shutdown
 
 ## Installation
 
@@ -44,14 +45,14 @@ Add the dependency to your `Cargo.toml`:
 
 ```toml
 # Add to your Cargo.toml
-solana-streamer-sdk = { path = "./solana-streamer", version = "0.3.5" }
+solana-streamer-sdk = { path = "./solana-streamer", version = "0.3.9" }
 ```
 
 ### Use crates.io
 
 ```toml
 # Add to your Cargo.toml
-solana-streamer-sdk = "0.3.5"
+solana-streamer-sdk = "0.3.9"
 ```
 
 ## Usage Examples
@@ -206,6 +207,16 @@ async fn test_grpc() -> Result<(), Box<dyn std::error::Error>> {
     )
     .await?;
 
+    // Support stop method, test code - stop after 1000 seconds asynchronously
+    let grpc_clone = grpc.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(1000)).await;
+        grpc_clone.stop().await;
+    });
+
+    println!("Waiting for Ctrl+C to stop...");
+    tokio::signal::ctrl_c().await?;
+
     Ok(())
 }
 
@@ -238,6 +249,16 @@ async fn test_shreds() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Listening for events, press Ctrl+C to stop...");
     shred_stream.shredstream_subscribe(protocols, None, event_type_filter, callback).await?;
+
+    // Support stop method, test code - stop after 1000 seconds asynchronously
+    let shred_clone = shred_stream.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(1000)).await;
+        shred_clone.stop().await;
+    });
+
+    println!("Waiting for Ctrl+C to stop...");
+    tokio::signal::ctrl_c().await?;
 
     Ok(())
 }
@@ -525,6 +546,7 @@ MIT License
 4. **Error Handling**: Robust error handling for network issues and service interruptions
 5. **Batch Processing Optimization**: Use batch processing to reduce callback overhead and improve throughput
 6. **Performance Monitoring**: Enable performance monitoring to identify bottlenecks and optimization opportunities
+7. **Graceful Shutdown**: Use the stop() method for clean shutdown and implement signal handlers for proper resource cleanup
 
 ## Important Notes
 

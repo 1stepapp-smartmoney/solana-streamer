@@ -80,6 +80,9 @@ pub struct AmmInfo {
 pub const AMM_INFO_SIZE: usize = 752;
 
 pub fn amm_info_decode(data: &[u8]) -> Option<AmmInfo> {
+    if data.len() < AMM_INFO_SIZE {
+        return None;
+    }
     borsh::from_slice::<AmmInfo>(&data[..AMM_INFO_SIZE]).ok()
 }
 
@@ -134,5 +137,8 @@ pub struct MarketState {
 pub const MARKET_STATE_SIZE: usize = 388;
 
 pub fn market_state_decode(data: &[u8]) -> Option<MarketState> {
+    if data.len() < MARKET_STATE_SIZE {
+        return None;
+    }
     borsh::from_slice::<MarketState>(&data[..MARKET_STATE_SIZE]).ok()
 }

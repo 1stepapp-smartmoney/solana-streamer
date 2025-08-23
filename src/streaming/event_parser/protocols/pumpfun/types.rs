@@ -35,6 +35,9 @@ pub fn bonding_curve_parser(
     account: &AccountPretty,
     metadata: EventMetadata,
 ) -> Option<Box<dyn UnifiedEvent>> {
+    if account.data.len() < BONDING_CURVE_SIZE + 8 {
+        return None;
+    }
     if let Some(bonding_curve) = bonding_curve_decode(&account.data[8..BONDING_CURVE_SIZE + 8]) {
         Some(Box::new(PumpFunBondingCurveAccountEvent {
             metadata,
@@ -82,6 +85,9 @@ pub fn global_parser(
     account: &AccountPretty,
     metadata: EventMetadata,
 ) -> Option<Box<dyn UnifiedEvent>> {
+    if account.data.len() < GLOBAL_SIZE + 8 {
+        return None;
+    }
     if let Some(global) = global_decode(&account.data[8..GLOBAL_SIZE + 8]) {
         Some(Box::new(PumpFunGlobalAccountEvent {
             metadata,

@@ -37,6 +37,9 @@ pub fn global_config_parser(
     account: &AccountPretty,
     metadata: EventMetadata,
 ) -> Option<Box<dyn UnifiedEvent>> {
+    if account.data.len() < GLOBAL_CONFIG_SIZE + 8 {
+        return None;
+    }
     if let Some(config) = global_config_decode(&account.data[8..GLOBAL_CONFIG_SIZE + 8]) {
         Some(Box::new(PumpSwapGlobalConfigAccountEvent {
             metadata,
@@ -79,6 +82,9 @@ pub fn pool_parser(
     account: &AccountPretty,
     metadata: EventMetadata,
 ) -> Option<Box<dyn UnifiedEvent>> {
+    if account.data.len() < POOL_SIZE + 8 {
+        return None;
+    }
     if let Some(pool) = pool_decode(&account.data[8..POOL_SIZE + 8]) {
         Some(Box::new(PumpSwapPoolAccountEvent {
             metadata,

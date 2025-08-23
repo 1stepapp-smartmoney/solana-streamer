@@ -28,6 +28,7 @@
 15. **背压处理**: 支持阻塞、丢弃、重试、有序等多种背压策略
 16. **运行时配置更新**: 支持在运行时动态更新配置参数
 17. **全函数性能监控**: 所有subscribe_events函数都支持性能监控，自动收集和报告性能指标
+18. **优雅关闭**: 支持编程式 stop() 方法进行干净的关闭
 
 ## 安装
 
@@ -44,14 +45,14 @@ git clone https://github.com/0xfnzero/solana-streamer
 
 ```toml
 # 添加到您的 Cargo.toml
-solana-streamer-sdk = { path = "./solana-streamer", version = "0.3.5" }
+solana-streamer-sdk = { path = "./solana-streamer", version = "0.3.9" }
 ```
 
 ### 使用 crates.io
 
 ```toml
 # 添加到您的 Cargo.toml
-solana-streamer-sdk = "0.3.5"
+solana-streamer-sdk = "0.3.9"
 ```
 
 ## 使用示例
@@ -206,6 +207,16 @@ async fn test_grpc() -> Result<(), Box<dyn std::error::Error>> {
     )
     .await?;
 
+    // 支持 stop 方法，测试代码 - 异步1000秒之后停止
+    let grpc_clone = grpc.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(1000)).await;
+        grpc_clone.stop().await;
+    });
+
+    println!("Waiting for Ctrl+C to stop...");
+    tokio::signal::ctrl_c().await?;
+
     Ok(())
 }
 
@@ -238,6 +249,16 @@ async fn test_shreds() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Listening for events, press Ctrl+C to stop...");
     shred_stream.shredstream_subscribe(protocols, None, event_type_filter, callback).await?;
+
+    // 支持 stop 方法，测试代码 - 异步1000秒之后停止
+    let shred_clone = shred_stream.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(1000)).await;
+        shred_clone.stop().await;
+    });
+
+    println!("Waiting for Ctrl+C to stop...");
+    tokio::signal::ctrl_c().await?;
 
     Ok(())
 }
@@ -516,6 +537,7 @@ src/
 4. **错误处理**: 对网络问题和服务中断进行健壮的错误处理
 5. **批处理优化**: 使用批处理减少回调开销，提高吞吐量
 6. **性能监控**: 启用性能监控以识别瓶颈和优化机会
+7. **优雅关闭**: 使用 stop() 方法进行干净关闭，并实现信号处理器以正确清理资源
 
 ## 许可证
 

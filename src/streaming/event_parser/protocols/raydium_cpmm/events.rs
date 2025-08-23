@@ -23,6 +23,8 @@ pub struct RaydiumCpmmSwapEvent {
     pub output_token_account: Pubkey,
     pub input_vault: Pubkey,
     pub output_vault: Pubkey,
+    pub input_token_program: Pubkey,
+    pub output_token_program: Pubkey,
     pub input_token_mint: Pubkey,
     pub output_token_mint: Pubkey,
     pub observation_state: Pubkey,
