@@ -204,6 +204,8 @@ impl PumpSwapEventParser {
             pool_quote_token_account: accounts[8],
             protocol_fee_recipient: accounts[9],
             protocol_fee_recipient_token_account: accounts[10],
+            base_token_program: accounts[11],
+            quote_token_program: accounts[12],
             coin_creator_vault_ata: accounts.get(17).copied().unwrap_or_default(),
             coin_creator_vault_authority: accounts.get(18).copied().unwrap_or_default(),
             global_volume_accumulator: accounts.get(19).copied().unwrap_or_default(),
@@ -245,6 +247,8 @@ impl PumpSwapEventParser {
             pool_quote_token_account: accounts[8],
             protocol_fee_recipient: accounts[9],
             protocol_fee_recipient_token_account: accounts[10],
+            base_token_program: accounts[11],
+            quote_token_program: accounts[12],
             coin_creator_vault_ata: accounts.get(17).copied().unwrap_or_default(),
             coin_creator_vault_authority: accounts.get(18).copied().unwrap_or_default(),
             ..Default::default()
