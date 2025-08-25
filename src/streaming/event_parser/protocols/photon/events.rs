@@ -28,14 +28,12 @@ pub struct PhotonPumpFunTradeEvent {
     pub creator: Pubkey,
     pub creator_fee_basis_points: u64,
     pub creator_fee: u64,
-    #[borsh(skip)]
-    pub bonding_curve: Pubkey,
-    #[borsh(skip)]
-    pub associated_bonding_curve: Pubkey,
-    #[borsh(skip)]
-    pub associated_user: Pubkey,
-    #[borsh(skip)]
-    pub creator_vault: Pubkey,
+    pub track_volume: bool,
+    pub total_unclaimed_tokens: u64,
+    pub total_claimed_tokens: u64,
+    pub current_sol_volume: u64,
+    pub last_update_timestamp: i64,
+
     #[borsh(skip)]
     pub max_sol_cost: u64,
     #[borsh(skip)]
@@ -46,6 +44,31 @@ pub struct PhotonPumpFunTradeEvent {
     pub is_bot: bool,
     #[borsh(skip)]
     pub is_dev_create_token_trade: bool, // 是否是dev创建token的交易
+
+    #[borsh(skip)]
+    pub global: Pubkey,
+    // #[borsh(skip)]
+    // pub fee_recipient: Pubkey,
+    // #[borsh(skip)]
+    // pub mint: Pubkey,
+    #[borsh(skip)]
+    pub bonding_curve: Pubkey,
+    #[borsh(skip)]
+    pub associated_bonding_curve: Pubkey,
+    #[borsh(skip)]
+    pub associated_user: Pubkey,
+    // #[borsh(skip)]
+    // pub user: Pubkey,
+    #[borsh(skip)]
+    pub system_program: Pubkey,
+    #[borsh(skip)]
+    pub token_program: Pubkey,
+    #[borsh(skip)]
+    pub creator_vault: Pubkey,
+    #[borsh(skip)]
+    pub event_authority: Pubkey,
+    #[borsh(skip)]
+    pub program: Pubkey,
     #[borsh(skip)]
     pub global_volume_accumulator: Pubkey,
     #[borsh(skip)]
@@ -114,6 +137,14 @@ pub struct PhotonPumpSwapTradeEvent {
     pub coin_creator_vault_ata: Pubkey,
     #[borsh(skip)]
     pub coin_creator_vault_authority: Pubkey,
+    #[borsh(skip)]
+    pub base_token_program: Pubkey,
+    #[borsh(skip)]
+    pub quote_token_program: Pubkey,
+    #[borsh(skip)]
+    pub global_volume_accumulator: Pubkey,
+    #[borsh(skip)]
+    pub user_volume_accumulator: Pubkey,
 }
 
 // 使用宏生成UnifiedEvent实现，指定需要合并的字段
