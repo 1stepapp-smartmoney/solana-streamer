@@ -70,4 +70,5 @@ pub mod discriminators {
     pub const TRADE_EVENT: &str = "0xe445a52e51cb9a1d1b3c15d58aaabb93";
     // 指令鉴别器
     pub const SWAP: &[u8] = &[248, 198, 158, 145, 225, 117, 135, 200];
+    pub const SWAP2: &[u8] = &[65, 75, 63, 76, 235, 91, 91, 136];
 }

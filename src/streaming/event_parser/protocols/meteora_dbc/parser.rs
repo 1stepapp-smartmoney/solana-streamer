@@ -41,6 +41,15 @@ impl MeteoraDBCEventParser {
                 inner_instruction_parser: Some(Self::parse_trade_inner_instruction),
                 instruction_parser: Some(Self::parse_swap_instruction),
             },
+            GenericEventParseConfig {
+                program_id: METEORA_DBC_PROGRAM_ID,
+                protocol_type: ProtocolType::MeteoraDBC,
+                inner_instruction_discriminator: discriminators::TRADE_EVENT,
+                instruction_discriminator: discriminators::SWAP2,
+                event_type: EventType::MeteoraDBCSwap2,
+                inner_instruction_parser: Some(Self::parse_trade_inner_instruction),
+                instruction_parser: Some(Self::parse_swap_instruction),
+            },
         ];
 
         let inner =

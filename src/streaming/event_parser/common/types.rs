@@ -172,6 +172,7 @@ pub enum EventType {
 
     // Meteora DBC events
     MeteoraDBCSwap,
+    MeteoraDBCSwap2,
 
     // Meteora DAMM v2 events
     MeteoraDAMMv2Swap,
@@ -286,6 +287,7 @@ impl EventType {
             EventType::PhotonPumpFunSell => "PhotonPumpFunSell".to_string(),
             EventType::PhotonPumpSwapTrade => "PhotonPumpSwapTrade".to_string(),
             EventType::MeteoraDBCSwap => "MeteoraDBCSwap".to_string(),
+            EventType::MeteoraDBCSwap2 => "MeteoraDBCSwap2".to_string(),
             EventType::MeteoraDAMMv2Swap => "MeteoraDAMMv2Swap".to_string(),
             EventType::AxiomPumpFunBuy => "AxiomPumpFunBuy".to_string(),
             EventType::AxiomPumpSwapBuy => "AxiomPumpSwapBuy".to_string(),
