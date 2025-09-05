@@ -27,3 +27,4 @@ pub use axiom2::Axiom2EventParser;
 pub use raydium_amm_v4::RaydiumAmmV4EventParser;
 pub use block::block_meta_event::BlockMetaEvent;
 pub use mutil::MutilEventParser;
+pub use ProgF5tfv::F5tfvEventParser;

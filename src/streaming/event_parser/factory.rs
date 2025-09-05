@@ -2,12 +2,13 @@ use anyhow::{anyhow, Result};
 use solana_sdk::pubkey::Pubkey;
 use std::{collections::HashMap, sync::{Arc, LazyLock}};
 
-use crate::streaming::event_parser::protocols::{bonk::parser::BONK_PROGRAM_ID, pumpfun::parser::PUMPFUN_PROGRAM_ID, pumpswap::parser::PUMPSWAP_PROGRAM_ID, raydium_cpmm::parser::RAYDIUM_CPMM_PROGRAM_ID, raydium_clmm::parser::RAYDIUM_CLMM_PROGRAM_ID, BonkEventParser, RaydiumCpmmEventParser, photon::parser::PHOTON_PROGRAM_ID, RaydiumClmmEventParser, MeteoraDAMMv2EventParser, AxiomEventParser, Axiom2EventParser, RaydiumAmmV4EventParser};
+use crate::streaming::event_parser::protocols::{bonk::parser::BONK_PROGRAM_ID, pumpfun::parser::PUMPFUN_PROGRAM_ID, pumpswap::parser::PUMPSWAP_PROGRAM_ID, raydium_cpmm::parser::RAYDIUM_CPMM_PROGRAM_ID, raydium_clmm::parser::RAYDIUM_CLMM_PROGRAM_ID, BonkEventParser, RaydiumCpmmEventParser, photon::parser::PHOTON_PROGRAM_ID, RaydiumClmmEventParser, MeteoraDAMMv2EventParser, AxiomEventParser, Axiom2EventParser, RaydiumAmmV4EventParser, F5tfvEventParser};
 use crate::streaming::event_parser::protocols::meteora_dammv2::parser::METEORA_DAMM_V2_PROGRAM_ID;
 use crate::streaming::event_parser::protocols::meteora_dbc::MeteoraDBCEventParser;
 use crate::streaming::event_parser::protocols::meteora_dbc::parser::METEORA_DBC_PROGRAM_ID;
 use crate::streaming::event_parser::protocols::axiom::parser::AXIOM_1_PROGRAM_ID;
 use crate::streaming::event_parser::protocols::axiom2::parser::AXIOM_2_PROGRAM_ID;
+use crate::streaming::event_parser::protocols::ProgF5tfv::parser::PROGF5TFV_PROGRAM_ID;
 use crate::streaming::event_parser::protocols::raydium_amm_v4::parser::RAYDIUM_AMM_V4_PROGRAM_ID;
 use super::{
     core::traits::EventParser,
@@ -28,6 +29,7 @@ pub enum Protocol {
     AxiomProgram1,
     AxiomProgram2,
     RaydiumAmmV4,
+    ProgF5tfv,
 }
 
 impl Protocol {
@@ -44,6 +46,7 @@ impl Protocol {
             Protocol::AxiomProgram1 => vec![AXIOM_1_PROGRAM_ID],
             Protocol::AxiomProgram2 => vec![AXIOM_2_PROGRAM_ID],
             Protocol::RaydiumAmmV4 => vec![RAYDIUM_AMM_V4_PROGRAM_ID],
+            Protocol::ProgF5tfv => vec![PROGF5TFV_PROGRAM_ID],
         }
     }
 }
@@ -62,6 +65,7 @@ impl std::fmt::Display for Protocol {
             Protocol::AxiomProgram1 => write!(f, "AxiomTradingProgram1"),
             Protocol::AxiomProgram2 => write!(f, "AxiomTradingProgram2"),
             Protocol::RaydiumAmmV4 => write!(f, "RaydiumAmmV4"),
+            Protocol::ProgF5tfv => write!(f, "ProgF5tfv"),
         }
     }
 }
@@ -82,6 +86,7 @@ impl std::str::FromStr for Protocol {
             "meteoradammv2" => Ok(Protocol::MeteoraDAMMv2),
             "axiomprogram1" => Ok(Protocol::AxiomProgram1),
             "axiomprogram2" => Ok(Protocol::AxiomProgram2),
+            "progf5tfv" => Ok(Protocol::ProgF5tfv),
             _ => Err(anyhow!("Unsupported protocol: {}", s)),
         }
     }
@@ -89,7 +94,7 @@ impl std::str::FromStr for Protocol {
 
 static EVENT_PARSERS: LazyLock<HashMap<Protocol, Arc<dyn EventParser>>> = LazyLock::new(|| {
     // 预分配容量，避免动态扩容
-    let mut parsers: HashMap<Protocol, Arc<dyn EventParser>> = HashMap::with_capacity(11);
+    let mut parsers: HashMap<Protocol, Arc<dyn EventParser>> = HashMap::with_capacity(12);
     parsers.insert(Protocol::PumpSwap, Arc::new(PumpSwapEventParser::new()));
     parsers.insert(Protocol::PumpFun, Arc::new(PumpFunEventParser::new()));
     parsers.insert(Protocol::Bonk, Arc::new(BonkEventParser::new()));
@@ -101,6 +106,7 @@ static EVENT_PARSERS: LazyLock<HashMap<Protocol, Arc<dyn EventParser>>> = LazyLo
     parsers.insert(Protocol::AxiomProgram1, Arc::new(AxiomEventParser::new()));
     parsers.insert(Protocol::AxiomProgram2, Arc::new(Axiom2EventParser::new()));
     parsers.insert(Protocol::RaydiumAmmV4, Arc::new(RaydiumAmmV4EventParser::new()));
+    parsers.insert(Protocol::ProgF5tfv, Arc::new(F5tfvEventParser::new()));
     parsers
 });
 
@@ -137,7 +143,8 @@ impl EventParserFactory {
              Protocol::MeteoraDAMMv2,
              Protocol::AxiomProgram1,
              Protocol::AxiomProgram2,
-             Protocol::RaydiumAmmV4
+             Protocol::RaydiumAmmV4,
+             Protocol::ProgF5tfv
         ]
     }
 

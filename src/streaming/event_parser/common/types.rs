@@ -72,6 +72,7 @@ pub enum ProtocolType {
     MeteoraDAMMv2,
     AxiomTrading1,
     AxiomTrading2,
+    ProgramF5tfv,
     RaydiumAmmV4,
     Common,
 }
@@ -145,6 +146,9 @@ pub enum EventType {
     // Axiom Trading events
     AxiomPumpFunBuy,
     AxiomPumpSwapBuy,
+
+    // Program F5tfv events
+    F5tfvPumpFunBuy,
 
     // Account events
     AccountRaydiumAmmV4AmmInfo,
@@ -258,6 +262,7 @@ impl fmt::Display for EventType {
             EventType::MeteoraDAMMv2Swap => write!(f, "MeteoraDAMMv2Swap"),
             EventType::AxiomPumpFunBuy => write!(f, "AxiomPumpFunBuy"),
             EventType::AxiomPumpSwapBuy => write!(f, "AxiomPumpSwapBuy"),
+            EventType::F5tfvPumpFunBuy => write!(f, "F5tfvPumpFunBuy"),
             EventType::Unknown => write!(f, "Unknown"),
         }
     }
