@@ -1,304 +1,611 @@
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
-use super::config::StreamClientConfig;
 use super::constants::*;
 
-/// 单个事件类型的指标
+/// Event type enumeration
+#[derive(Debug, Clone, Copy)]
+pub enum EventType {
+    Transaction = 0,
+    Account = 1,
+    BlockMeta = 2,
+}
+
+/// Compatibility alias
+pub type MetricsEventType = EventType;
+
+impl EventType {
+    #[inline]
+    const fn as_index(self) -> usize {
+        self as usize
+    }
+
+    const fn name(self) -> &'static str {
+        match self {
+            EventType::Transaction => "TX",
+            EventType::Account => "Account",
+            EventType::BlockMeta => "Block Meta",
+        }
+    }
+
+    // Compatibility constants
+    pub const TX: EventType = EventType::Transaction;
+}
+
+/// High-performance atomic event metrics
+#[derive(Debug)]
+struct AtomicEventMetrics {
+    process_count: AtomicU64,
+    events_processed: AtomicU64,
+    events_in_window: AtomicU64,
+    window_start_nanos: AtomicU64,
+    // Processing time statistics per event type
+    processing_stats: AtomicProcessingTimeStats,
+}
+
+impl AtomicEventMetrics {
+    fn new(now_nanos: u64) -> Self {
+        Self {
+            process_count: AtomicU64::new(0),
+            events_processed: AtomicU64::new(0),
+            events_in_window: AtomicU64::new(0),
+            window_start_nanos: AtomicU64::new(now_nanos),
+            processing_stats: AtomicProcessingTimeStats::new(),
+        }
+    }
+
+    /// Atomically increment process count
+    #[inline]
+    fn add_process_count(&self) {
+        self.process_count.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Atomically increment event processing count
+    #[inline]
+    fn add_events_processed(&self, count: u64) {
+        self.events_processed.fetch_add(count, Ordering::Relaxed);
+        self.events_in_window.fetch_add(count, Ordering::Relaxed);
+    }
+
+    /// Get current count (non-blocking)
+    #[inline]
+    fn get_counts(&self) -> (u64, u64, u64) {
+        (
+            self.process_count.load(Ordering::Relaxed),
+            self.events_processed.load(Ordering::Relaxed),
+            self.events_in_window.load(Ordering::Relaxed),
+        )
+    }
+
+    /// Reset window count
+    #[inline]
+    fn reset_window(&self, new_start_nanos: u64) {
+        self.events_in_window.store(0, Ordering::Relaxed);
+        self.window_start_nanos.store(new_start_nanos, Ordering::Relaxed);
+    }
+
+    #[inline]
+    fn get_window_start(&self) -> u64 {
+        self.window_start_nanos.load(Ordering::Relaxed)
+    }
+
+    /// Get processing time statistics for this event type
+    #[inline]
+    fn get_processing_stats(&self) -> ProcessingTimeStats {
+        self.processing_stats.get_stats()
+    }
+
+    /// Update processing time statistics for this event type
+    #[inline]
+    fn update_processing_stats(&self, time_us: f64, event_count: u64) {
+        self.processing_stats.update(time_us, event_count);
+    }
+}
+
+/// High-performance atomic processing time statistics
+#[derive(Debug)]
+struct AtomicProcessingTimeStats {
+    min_time_bits: AtomicU64,
+    max_time_bits: AtomicU64,
+    min_time_timestamp_nanos: AtomicU64, // Timestamp of min value update (nanoseconds)
+    max_time_timestamp_nanos: AtomicU64, // Timestamp of max value update (nanoseconds)
+    total_time_us: AtomicU64,            // Store integer part of microseconds
+    total_events: AtomicU64,
+}
+
+impl AtomicProcessingTimeStats {
+    fn new() -> Self {
+        let now_nanos =
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+                as u64;
+
+        Self {
+            min_time_bits: AtomicU64::new(f64::INFINITY.to_bits()),
+            max_time_bits: AtomicU64::new(0),
+            min_time_timestamp_nanos: AtomicU64::new(now_nanos),
+            max_time_timestamp_nanos: AtomicU64::new(now_nanos),
+            total_time_us: AtomicU64::new(0),
+            total_events: AtomicU64::new(0),
+        }
+    }
+
+    /// Atomically update processing time statistics
+    #[inline]
+    fn update(&self, time_us: f64, event_count: u64) {
+        let time_bits = time_us.to_bits();
+        let now_nanos =
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+                as u64;
+
+        // Update minimum value, check time difference and reset if over 10 seconds
+        let mut current_min = self.min_time_bits.load(Ordering::Relaxed);
+        let min_timestamp = self.min_time_timestamp_nanos.load(Ordering::Relaxed);
+
+        // Check if min value timestamp exceeds 10 seconds (10_000_000_000 nanoseconds)
+        let min_time_diff_nanos = now_nanos.saturating_sub(min_timestamp);
+        if min_time_diff_nanos > 10_000_000_000 {
+            // Over 10 seconds, reset min value
+            self.min_time_bits.store(f64::INFINITY.to_bits(), Ordering::Relaxed);
+            self.min_time_timestamp_nanos.store(now_nanos, Ordering::Relaxed);
+            current_min = f64::INFINITY.to_bits();
+        }
+
+        // If current time is less than min value, update min value and timestamp
+        while time_bits < current_min {
+            match self.min_time_bits.compare_exchange_weak(
+                current_min,
+                time_bits,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => {
+                    // Successfully updated min value, also update timestamp
+                    self.min_time_timestamp_nanos.store(now_nanos, Ordering::Relaxed);
+                    break;
+                }
+                Err(x) => current_min = x,
+            }
+        }
+
+        // Update maximum value, check time difference and reset if over 10 seconds
+        let mut current_max = self.max_time_bits.load(Ordering::Relaxed);
+        let max_timestamp = self.max_time_timestamp_nanos.load(Ordering::Relaxed);
+
+        // Check if max value timestamp exceeds 10 seconds (10_000_000_000 nanoseconds)
+        let time_diff_nanos = now_nanos.saturating_sub(max_timestamp);
+        if time_diff_nanos > 10_000_000_000 {
+            // Over 10 seconds, reset max value
+            self.max_time_bits.store(0, Ordering::Relaxed);
+            self.max_time_timestamp_nanos.store(now_nanos, Ordering::Relaxed);
+            current_max = 0;
+        }
+
+        // If current time is greater than max value, update max value and timestamp
+        while time_bits > current_max {
+            match self.max_time_bits.compare_exchange_weak(
+                current_max,
+                time_bits,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => {
+                    // Successfully updated max value, also update timestamp
+                    self.max_time_timestamp_nanos.store(now_nanos, Ordering::Relaxed);
+                    break;
+                }
+                Err(x) => current_max = x,
+            }
+        }
+
+        // Update cumulative values (convert microseconds to integers to avoid floating point accumulation issues)
+        let total_time_us_int = (time_us * event_count as f64) as u64;
+        self.total_time_us.fetch_add(total_time_us_int, Ordering::Relaxed);
+        self.total_events.fetch_add(event_count, Ordering::Relaxed);
+    }
+
+    /// Get statistics (non-blocking)
+    #[inline]
+    fn get_stats(&self) -> ProcessingTimeStats {
+        let min_bits = self.min_time_bits.load(Ordering::Relaxed);
+        let max_bits = self.max_time_bits.load(Ordering::Relaxed);
+        let total_time_us_int = self.total_time_us.load(Ordering::Relaxed);
+        let total_events = self.total_events.load(Ordering::Relaxed);
+
+        let min_time = f64::from_bits(min_bits);
+        let max_time = f64::from_bits(max_bits);
+        let avg_time =
+            if total_events > 0 { total_time_us_int as f64 / total_events as f64 } else { 0.0 };
+
+        ProcessingTimeStats {
+            min_us: if min_time == f64::INFINITY { 0.0 } else { min_time },
+            max_us: max_time,
+            avg_us: avg_time,
+        }
+    }
+}
+
+/// Processing time statistics result
 #[derive(Debug, Clone)]
-pub struct EventMetrics {
+pub struct ProcessingTimeStats {
+    pub min_us: f64,
+    pub max_us: f64,
+    pub avg_us: f64,
+}
+
+/// Event metrics snapshot
+#[derive(Debug, Clone)]
+pub struct EventMetricsSnapshot {
     pub process_count: u64,
     pub events_processed: u64,
-    pub events_per_second: f64,
-    pub events_in_window: u64,
-    pub window_start_time: std::time::Instant,
+    pub processing_stats: ProcessingTimeStats,
 }
 
-impl EventMetrics {
-    fn new(now: std::time::Instant) -> Self {
-        Self {
-            process_count: 0,
-            events_processed: 0,
-            events_per_second: 0.0,
-            events_in_window: 0,
-            window_start_time: now,
-        }
-    }
-}
-
-/// 通用性能监控指标
+/// Compatibility structure - complete performance metrics
 #[derive(Debug, Clone)]
 pub struct PerformanceMetrics {
-    pub start_time: std::time::Instant,
-    pub event_metrics: [EventMetrics; 3], // [Tx, Account, BlockMeta]
-    pub average_processing_time_ms: f64,
-    pub min_processing_time_ms: f64,
-    pub max_processing_time_ms: f64,
-    pub last_update_time: std::time::Instant,
-}
-
-impl Default for PerformanceMetrics {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-pub enum MetricsEventType {
-    Tx,
-    Account,
-    BlockMeta,
-}
-
-impl MetricsEventType {
-    fn as_index(&self) -> usize {
-        match self {
-            MetricsEventType::Tx => 0,
-            MetricsEventType::Account => 1,
-            MetricsEventType::BlockMeta => 2,
-        }
-    }
+    pub uptime: std::time::Duration,
+    pub tx_metrics: EventMetricsSnapshot,
+    pub account_metrics: EventMetricsSnapshot,
+    pub block_meta_metrics: EventMetricsSnapshot,
+    pub processing_stats: ProcessingTimeStats,
+    pub dropped_events_count: u64,
 }
 
 impl PerformanceMetrics {
+    /// Create default performance metrics (compatibility method)
     pub fn new() -> Self {
-        let now = std::time::Instant::now();
+        let default_stats = ProcessingTimeStats { min_us: 0.0, max_us: 0.0, avg_us: 0.0 };
+        let default_metrics = EventMetricsSnapshot {
+            process_count: 0,
+            events_processed: 0,
+            processing_stats: default_stats.clone(),
+        };
+
         Self {
-            start_time: now,
-            event_metrics: [EventMetrics::new(now), EventMetrics::new(now), EventMetrics::new(now)],
-            average_processing_time_ms: 0.0,
-            min_processing_time_ms: 0.0,
-            max_processing_time_ms: 0.0,
-            last_update_time: now,
+            uptime: std::time::Duration::ZERO,
+            tx_metrics: default_metrics.clone(),
+            account_metrics: default_metrics.clone(),
+            block_meta_metrics: default_metrics,
+            processing_stats: default_stats,
+            dropped_events_count: 0,
+        }
+    }
+}
+
+/// High-performance metrics system
+#[derive(Debug)]
+pub struct HighPerformanceMetrics {
+    start_nanos: u64,
+    event_metrics: [AtomicEventMetrics; 3],
+    processing_stats: AtomicProcessingTimeStats,
+    // 丢弃事件指标
+    dropped_events_count: AtomicU64,
+}
+
+impl HighPerformanceMetrics {
+    fn new() -> Self {
+        let now_nanos =
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+                as u64;
+
+        Self {
+            start_nanos: now_nanos,
+            event_metrics: [
+                AtomicEventMetrics::new(now_nanos),
+                AtomicEventMetrics::new(now_nanos),
+                AtomicEventMetrics::new(now_nanos),
+            ],
+            processing_stats: AtomicProcessingTimeStats::new(),
+            // 初始化丢弃事件指标
+            dropped_events_count: AtomicU64::new(0),
         }
     }
 
-    /// 更新时间窗口指标
-    fn update_window_metrics(
-        &mut self,
-        event_type: &MetricsEventType,
-        now: std::time::Instant,
-        window_duration: std::time::Duration,
-    ) {
+    /// 获取运行时长（秒）
+    #[inline]
+    pub fn get_uptime_seconds(&self) -> f64 {
+        let now_nanos =
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+                as u64;
+        (now_nanos - self.start_nanos) as f64 / 1_000_000_000.0
+    }
+
+    /// 获取事件指标快照
+    #[inline]
+    pub fn get_event_metrics(&self, event_type: EventType) -> EventMetricsSnapshot {
         let index = event_type.as_index();
-        let event_metric = &mut self.event_metrics[index];
+        let (process_count, events_processed, _) = self.event_metrics[index].get_counts();
+        let processing_stats = self.event_metrics[index].get_processing_stats();
 
-        if now.duration_since(event_metric.window_start_time) >= window_duration {
-            let window_seconds = now.duration_since(event_metric.window_start_time).as_secs_f64();
-            // 修复：正确计算每秒事件数，避免除零错误
-            event_metric.events_per_second = if window_seconds > 0.001 {
-                // 避免极小的时间差
-                event_metric.events_in_window as f64 / window_seconds
-            } else {
-                0.0 // 时间太短时设为0，而不是事件总数
-            };
-
-            // 重置窗口
-            event_metric.events_in_window = 0;
-            event_metric.window_start_time = now;
-        }
+        EventMetricsSnapshot { process_count, events_processed, processing_stats }
     }
 
-    /// 计算实时每秒事件数（用于显示）
-    fn calculate_real_time_events_per_second(
-        &self,
-        event_type: &MetricsEventType,
-        now: std::time::Instant,
-    ) -> f64 {
+    /// 获取处理时间统计
+    #[inline]
+    pub fn get_processing_stats(&self) -> ProcessingTimeStats {
+        self.processing_stats.get_stats()
+    }
+
+    /// 获取丢弃事件计数
+    #[inline]
+    pub fn get_dropped_events_count(&self) -> u64 {
+        self.dropped_events_count.load(Ordering::Relaxed)
+    }
+
+    /// 更新窗口指标（后台任务调用）
+    fn update_window_metrics(&self, event_type: EventType, window_duration_nanos: u64) {
+        let now_nanos =
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+                as u64;
+
         let index = event_type.as_index();
         let event_metric = &self.event_metrics[index];
 
-        let current_window_duration =
-            now.duration_since(event_metric.window_start_time).as_secs_f64();
-
-        // 如果当前窗口有足够的时间和事件，使用当前窗口的数据
-        if current_window_duration > 1.0 && event_metric.events_in_window > 0 {
-            event_metric.events_in_window as f64 / current_window_duration
-        }
-        // 如果当前窗口时间太短或没有事件，使用上一个完整窗口的值
-        else if event_metric.events_per_second > 0.0 {
-            event_metric.events_per_second
-        }
-        // 如果都没有，计算总体平均值
-        else {
-            let total_duration = now.duration_since(self.start_time).as_secs_f64();
-            if total_duration > 1.0 && event_metric.events_processed > 0 {
-                event_metric.events_processed as f64 / total_duration
-            } else {
-                0.0
-            }
+        let window_start = event_metric.get_window_start();
+        if now_nanos.saturating_sub(window_start) >= window_duration_nanos {
+            event_metric.reset_window(now_nanos);
         }
     }
 }
 
-/// 通用性能监控管理器
+/// 高性能指标管理器
 pub struct MetricsManager {
-    metrics: Arc<Mutex<PerformanceMetrics>>,
-    config: Arc<StreamClientConfig>,
+    metrics: Arc<HighPerformanceMetrics>,
+    enable_metrics: bool,
     stream_name: String,
+    background_task_running: AtomicBool,
 }
 
 impl MetricsManager {
-    /// 创建新的性能监控管理器
-    pub fn new(
-        metrics: Arc<Mutex<PerformanceMetrics>>,
-        config: Arc<StreamClientConfig>,
-        stream_name: String,
-    ) -> Self {
-        Self { metrics, config, stream_name }
+    /// 创建新的指标管理器
+    pub fn new(enable_metrics: bool, stream_name: String) -> Self {
+        let manager = Self {
+            metrics: Arc::new(HighPerformanceMetrics::new()),
+            enable_metrics,
+            stream_name,
+            background_task_running: AtomicBool::new(false),
+        };
+
+        // 启动后台任务
+        manager.start_background_tasks();
+        manager
     }
 
-    /// 获取性能指标
-    pub async fn get_metrics(&self) -> PerformanceMetrics {
-        let metrics = self.metrics.lock().await;
-        metrics.clone()
+    /// 启动后台任务
+    fn start_background_tasks(&self) {
+        if self
+            .background_task_running
+            .compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
+            .is_ok()
+        {
+            if !self.enable_metrics {
+                return;
+            }
+
+            let metrics = self.metrics.clone();
+
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
+
+                loop {
+                    interval.tick().await;
+
+                    let window_duration_nanos = DEFAULT_METRICS_WINDOW_SECONDS * 1_000_000_000;
+
+                    // 更新所有事件类型的窗口指标
+                    metrics.update_window_metrics(EventType::Transaction, window_duration_nanos);
+                    metrics.update_window_metrics(EventType::Account, window_duration_nanos);
+                    metrics.update_window_metrics(EventType::BlockMeta, window_duration_nanos);
+                }
+            });
+        }
     }
 
-    /// 打印性能指标
-    pub async fn print_metrics(&self) {
-        let metrics = self.get_metrics().await;
-        let event_names = ["TX", "Account", "Block Meta"];
-        let event_types =
-            [MetricsEventType::Tx, MetricsEventType::Account, MetricsEventType::BlockMeta];
-        let now = std::time::Instant::now();
+    /// 记录处理次数（非阻塞）
+    #[inline]
+    pub fn record_process(&self, event_type: EventType) {
+        if self.enable_metrics {
+            self.metrics.event_metrics[event_type.as_index()].add_process_count();
+        }
+    }
 
+    /// 记录事件处理（非阻塞）
+    #[inline]
+    pub fn record_events(&self, event_type: EventType, count: u64, processing_time_us: f64) {
+        if !self.enable_metrics {
+            return;
+        }
+
+        let index = event_type.as_index();
+
+        // 原子更新事件计数
+        self.metrics.event_metrics[index].add_events_processed(count);
+
+        // 原子更新该事件类型的处理时间统计
+        self.metrics.event_metrics[index].update_processing_stats(processing_time_us, count);
+
+        // 保持全局处理时间统计的兼容性
+        self.metrics.processing_stats.update(processing_time_us, count);
+    }
+
+    /// 记录慢处理操作
+    #[inline]
+    pub fn log_slow_processing(&self, processing_time_us: f64, event_count: usize) {
+        if processing_time_us > SLOW_PROCESSING_THRESHOLD_US {
+            log::debug!(
+                "{} slow processing: {:.2}us for {} events",
+                self.stream_name,
+                processing_time_us,
+                event_count,
+            );
+        }
+    }
+
+    /// 获取运行时长
+    pub fn get_uptime(&self) -> std::time::Duration {
+        std::time::Duration::from_secs_f64(self.metrics.get_uptime_seconds())
+    }
+
+    /// 获取事件指标
+    pub fn get_event_metrics(&self, event_type: EventType) -> EventMetricsSnapshot {
+        self.metrics.get_event_metrics(event_type)
+    }
+
+    /// 获取处理时间统计
+    pub fn get_processing_stats(&self) -> ProcessingTimeStats {
+        self.metrics.get_processing_stats()
+    }
+
+    /// 获取丢弃事件计数
+    pub fn get_dropped_events_count(&self) -> u64 {
+        self.metrics.get_dropped_events_count()
+    }
+
+    /// 打印性能指标（非阻塞）
+    pub fn print_metrics(&self) {
         println!("\n📊 {} Performance Metrics", self.stream_name);
-        println!("   Run Time: {:?}", metrics.start_time.elapsed());
-        
-        // 打印表格头部
-        println!("┌─────────────┬──────────────┬──────────────────┬─────────────────┐");
-        println!("│ Event Type  │ Process Count│ Events Processed │ Events/Second   │");
-        println!("├─────────────┼──────────────┼──────────────────┼─────────────────┤");
+        println!("   Run Time: {:?}", self.get_uptime());
 
-        // 打印每种事件类型的数据
-        for (i, name) in event_names.iter().enumerate() {
-            let event_metric = &metrics.event_metrics[i];
-            // 使用实时计算的每秒事件数，而不是窗口更新的值
-            let real_time_eps = metrics.calculate_real_time_events_per_second(&event_types[i], now);
+        // 打印丢弃事件指标
+        let dropped_count = self.get_dropped_events_count();
+        if dropped_count > 0 {
+            println!("\n⚠️  Dropped Events: {}", dropped_count);
+        }
 
+        // 打印事件指标表格（包含处理时间统计）
+        println!("┌─────────────┬──────────────┬──────────────────┬─────────────┬─────────────┬─────────────┐");
+        println!("│ Event Type  │ Process Count│ Events Processed │ Avg Time(μs)│ Min 10s(μs) │ Max 10s(μs) │");
+        println!("├─────────────┼──────────────┼──────────────────┼─────────────┼─────────────┼─────────────┤");
+
+        for event_type in [EventType::Transaction, EventType::Account, EventType::BlockMeta] {
+            let metrics = self.get_event_metrics(event_type);
             println!(
-                "│ {:11} │ {:12} │ {:16} │ {:13.2}   │",
-                name,
-                event_metric.process_count,
-                event_metric.events_processed,
-                real_time_eps
+                "│ {:11} │ {:12} │ {:16} │ {:9.2}   │ {:9.2}   │ {:9.2}   │",
+                event_type.name(),
+                metrics.process_count,
+                metrics.events_processed,
+                metrics.processing_stats.avg_us,
+                metrics.processing_stats.min_us,
+                metrics.processing_stats.max_us
             );
         }
 
-        println!("└─────────────┴──────────────┴──────────────────┴─────────────────┘");
-
-        // 打印处理时间统计表格
-        println!("\n⏱️  Processing Time Statistics");
-        println!("┌─────────────────────┬─────────────┐");
-        println!("│ Metric              │ Value (ms)  │");
-        println!("├─────────────────────┼─────────────┤");
-        println!("│ Average             │ {:9.2}   │", metrics.average_processing_time_ms);
-        println!("│ Minimum             │ {:9.2}   │", metrics.min_processing_time_ms);
-        println!("│ Maximum             │ {:9.2}   │", metrics.max_processing_time_ms);
-        println!("└─────────────────────┴─────────────┘");
+        println!("└─────────────┴──────────────┴──────────────────┴─────────────┴─────────────┴─────────────┘");
         println!();
     }
 
     /// 启动自动性能监控任务
     pub async fn start_auto_monitoring(&self) -> Option<tokio::task::JoinHandle<()>> {
-        // 检查是否启用性能监控
-        if !self.config.enable_metrics {
-            return None; // 如果未启用性能监控，不启动监控任务
+        if !self.enable_metrics {
+            return None;
         }
 
-        let metrics_manager = self.clone();
+        let manager = self.clone();
         let handle = tokio::spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(
                 DEFAULT_METRICS_PRINT_INTERVAL_SECONDS,
             ));
             loop {
                 interval.tick().await;
-                metrics_manager.print_metrics().await;
+                manager.print_metrics();
             }
         });
         Some(handle)
     }
 
-    /// 更新处理次数
-    pub async fn add_process_count(&self, event_type: MetricsEventType) {
-        if !self.config.enable_metrics {
-            return;
+    // === 兼容性方法 ===
+
+    /// 兼容性构造函数
+    pub fn new_with_metrics(
+        _metrics: Arc<std::sync::RwLock<PerformanceMetrics>>,
+        enable_metrics: bool,
+        stream_name: String,
+    ) -> Self {
+        Self::new(enable_metrics, stream_name)
+    }
+
+    /// 获取完整的性能指标（兼容性方法）
+    pub fn get_metrics(&self) -> PerformanceMetrics {
+        PerformanceMetrics {
+            uptime: self.get_uptime(),
+            tx_metrics: self.get_event_metrics(EventType::Transaction),
+            account_metrics: self.get_event_metrics(EventType::Account),
+            block_meta_metrics: self.get_event_metrics(EventType::BlockMeta),
+            processing_stats: self.get_processing_stats(),
+            dropped_events_count: self.metrics.get_dropped_events_count(),
         }
-        let mut metrics = self.metrics.lock().await;
-        metrics.event_metrics[event_type.as_index()].process_count += 1;
     }
 
-    // 保持向后兼容的方法
-    pub async fn add_tx_process_count(&self) {
-        self.add_process_count(MetricsEventType::Tx).await;
+    /// 兼容性方法 - 添加交易处理计数
+    #[inline]
+    pub fn add_tx_process_count(&self) {
+        self.record_process(EventType::Transaction);
     }
 
-    pub async fn add_account_process_count(&self) {
-        self.add_process_count(MetricsEventType::Account).await;
+    /// 兼容性方法 - 添加账户处理计数
+    #[inline]
+    pub fn add_account_process_count(&self) {
+        self.record_process(EventType::Account);
     }
 
-    pub async fn add_block_meta_process_count(&self) {
-        self.add_process_count(MetricsEventType::BlockMeta).await;
+    /// 兼容性方法 - 添加区块元数据处理计数
+    #[inline]
+    pub fn add_block_meta_process_count(&self) {
+        self.record_process(EventType::BlockMeta);
     }
 
-    /// 更新性能指标
-    pub async fn update_metrics(
+    /// 兼容性方法 - 更新指标
+    #[inline]
+    pub fn update_metrics(
         &self,
         event_type: MetricsEventType,
         events_processed: u64,
-        processing_time_ms: f64,
+        processing_time_us: f64,
     ) {
-        // 检查是否启用性能监控
-        if !self.config.enable_metrics {
+        self.record_events(event_type, events_processed, processing_time_us);
+        self.log_slow_processing(processing_time_us, events_processed as usize);
+    }
+
+    /// 增加丢弃事件计数
+    #[inline]
+    pub fn increment_dropped_events(&self) {
+        if !self.enable_metrics {
             return;
         }
 
-        let mut metrics = self.metrics.lock().await;
-        let now = std::time::Instant::now();
-        let index = event_type.as_index();
+        // 原子地增加丢弃事件计数
+        let new_count = self.metrics.dropped_events_count.fetch_add(1, Ordering::Relaxed) + 1;
 
-        // 更新事件计数
-        metrics.event_metrics[index].events_processed += events_processed;
-        metrics.event_metrics[index].events_in_window += events_processed;
-
-        metrics.last_update_time = now;
-
-        // 更新处理时间统计
-        if processing_time_ms < metrics.min_processing_time_ms
-            || metrics.min_processing_time_ms == 0.0
-        {
-            metrics.min_processing_time_ms = processing_time_ms;
+        // 每丢弃1000个事件记录一次警告日志
+        if new_count % 1000 == 0 {
+            log::debug!("{} dropped events count reached: {}", self.stream_name, new_count);
         }
-        if processing_time_ms > metrics.max_processing_time_ms {
-            metrics.max_processing_time_ms = processing_time_ms;
-        }
-
-        // 计算平均处理时间 - 使用增量更新避免重复计算
-        let total_events = metrics.event_metrics[index].events_processed;
-        if total_events > 0 {
-            let total_events_f64 = total_events as f64;
-            let old_total = (total_events_f64 - events_processed as f64).max(0.0);
-
-            metrics.average_processing_time_ms = if old_total > 0.0 {
-                (metrics.average_processing_time_ms * old_total
-                    + processing_time_ms * events_processed as f64)
-                    / total_events_f64
-            } else {
-                processing_time_ms
-            };
-        }
-
-        // 更新时间窗口指标
-        let window_duration = std::time::Duration::from_secs(DEFAULT_METRICS_WINDOW_SECONDS);
-        metrics.update_window_metrics(&event_type, now, window_duration);
     }
 
-    /// 记录慢处理操作
-    pub fn log_slow_processing(&self, processing_time_ms: f64, event_count: usize) {
-        if processing_time_ms > SLOW_PROCESSING_THRESHOLD_MS {
-            log::warn!(
-                "{} slow processing: {processing_time_ms}ms for {event_count} events",
-                self.stream_name
+    /// 批量增加丢弃事件计数
+    #[inline]
+    pub fn increment_dropped_events_by(&self, count: u64) {
+        if !self.enable_metrics || count == 0 {
+            return;
+        }
+
+        // 原子地增加丢弃事件计数
+        let new_count =
+            self.metrics.dropped_events_count.fetch_add(count, Ordering::Relaxed) + count;
+
+        // 记录批量丢弃事件的日志
+        if count > 1 {
+            log::debug!(
+                "{} dropped batch of {} events, total dropped: {}",
+                self.stream_name,
+                count,
+                new_count
             );
+        }
+
+        // 每丢弃1000个事件记录一次警告日志
+        if new_count % 1000 == 0 || (new_count / 1000) != ((new_count - count) / 1000) {
+            log::debug!("{} dropped events count reached: {}", self.stream_name, new_count);
         }
     }
 }
@@ -307,8 +614,9 @@ impl Clone for MetricsManager {
     fn clone(&self) -> Self {
         Self {
             metrics: self.metrics.clone(),
-            config: self.config.clone(),
+            enable_metrics: self.enable_metrics,
             stream_name: self.stream_name.clone(),
+            background_task_running: AtomicBool::new(false), // 新实例不自动启动后台任务
         }
     }
 }

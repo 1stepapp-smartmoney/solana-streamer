@@ -65,7 +65,7 @@ impl_unified_event!(
 /// 事件鉴别器常量
 pub mod discriminators {
 
-    pub const TRADE_EVENT: &str = "0xe445a52e51cb9a1d1b3c15d58aaabb93";
+    pub const TRADE_EVENT: &[u8] = &[228, 69, 165, 46, 81, 203, 154, 29, 27, 60, 21, 213, 138, 170, 187, 147];
     // 指令鉴别器
     pub const SWAP: &[u8] = &[248, 198, 158, 145, 225, 117, 135, 200];
 }

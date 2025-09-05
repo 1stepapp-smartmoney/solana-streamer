@@ -1,19 +1,17 @@
 use crate::{
     common::AnyResult,
-    streaming::{
-        grpc::{BackpressureStrategy, EventPretty, StreamHandler},
-        yellowstone_grpc::YellowstoneGrpc,
-    },
+    streaming::{grpc::pool::factory, grpc::EventPretty, yellowstone_grpc::YellowstoneGrpc},
 };
-use futures::{channel::mpsc, StreamExt};
+use futures::{SinkExt, StreamExt};
 use log::error;
 use solana_program::pubkey;
 use solana_sdk::{pubkey::Pubkey, transaction::VersionedTransaction};
-use solana_transaction_status::EncodedTransactionWithStatusMeta;
+use solana_transaction_status::TransactionWithStatusMeta;
+use yellowstone_grpc_proto::geyser::{
+    subscribe_update::UpdateOneof, SubscribeRequest, SubscribeRequestPing,
+};
 
 const SYSTEM_PROGRAM_ID: Pubkey = pubkey!("11111111111111111111111111111111");
-// 根据实际并发量调整通道大小，避免背压
-const CHANNEL_SIZE: usize = 50000; // 增加到 50000
 
 #[derive(Debug)]
 pub enum SystemEvent {
@@ -36,7 +34,7 @@ impl YellowstoneGrpc {
         account_exclude: Option<Vec<String>>,
     ) -> AnyResult<()>
     where
-        F: Fn(SystemEvent) + Send + Sync + 'static,
+        F: Fn(SystemEvent) + Send + Sync + Clone + 'static,
     {
         let addrs = vec![SYSTEM_PROGRAM_ID.to_string()];
         let account_include = account_include.unwrap_or_default();
@@ -47,11 +45,10 @@ impl YellowstoneGrpc {
             addrs,
             None,
         );
-        let (mut subscribe_tx, mut stream) = self
+        let (mut subscribe_tx, mut stream, _) = self
             .subscription_manager
             .subscribe_with_request(transactions, None, None, None)
             .await?;
-        let (mut tx, mut rx) = mpsc::channel::<EventPretty>(CHANNEL_SIZE);
 
         let callback = Box::new(callback);
 
@@ -59,16 +56,32 @@ impl YellowstoneGrpc {
             while let Some(message) = stream.next().await {
                 match message {
                     Ok(msg) => {
-                        if let Err(e) = StreamHandler::handle_stream_message(
-                            msg,
-                            &mut tx,
-                            &mut subscribe_tx,
-                            BackpressureStrategy::Block,
-                        )
-                        .await
-                        {
-                            error!("Error handling message: {e:?}");
-                            break;
+                        let created_at = msg.created_at;
+                        match msg.update_oneof {
+                            Some(UpdateOneof::Transaction(sut)) => {
+                                let transaction_pretty =
+                                    factory::create_transaction_pretty_pooled(sut, created_at);
+                                let event_pretty = EventPretty::Transaction(transaction_pretty);
+                                if let Err(e) =
+                                    Self::process_system_transaction(event_pretty, &*callback).await
+                                {
+                                    error!("Error processing transaction: {e:?}");
+                                }
+                            }
+                            Some(UpdateOneof::Ping(_)) => {
+                                let _ = subscribe_tx
+                                    .send(SubscribeRequest {
+                                        ping: Some(SubscribeRequestPing { id: 1 }),
+                                        ..Default::default()
+                                    })
+                                    .await;
+                            }
+                            Some(UpdateOneof::Pong(_)) => {
+                                // Pong response, no action needed
+                            }
+                            _ => {
+                                // Other message types, ignore for system subscription
+                            }
                         }
                     }
                     Err(error) => {
@@ -78,12 +91,6 @@ impl YellowstoneGrpc {
                 }
             }
         });
-
-        while let Some(event_pretty) = rx.next().await {
-            if let Err(e) = Self::process_system_transaction(event_pretty, &*callback).await {
-                error!("Error processing transaction: {e:?}");
-            }
-        }
         Ok(())
     }
 
@@ -93,21 +100,22 @@ impl YellowstoneGrpc {
     {
         match event_pretty {
             EventPretty::Transaction(transaction_pretty) => {
-                let trade_raw: EncodedTransactionWithStatusMeta = transaction_pretty.tx;
-                let meta = trade_raw
-                    .meta
-                    .as_ref()
-                    .ok_or_else(|| anyhow::anyhow!("Missing transaction metadata"))?;
-
-                if meta.err.is_some() {
-                    return Ok(());
+                let tx = yellowstone_grpc_proto::convert_from::create_tx_with_meta(
+                    transaction_pretty.grpc_tx,
+                );
+                if let Ok(tx) = tx {
+                    let trade_raw: TransactionWithStatusMeta = tx;
+                    let meta = trade_raw.get_status_meta();
+                    if meta.is_none() {
+                        return Ok(());
+                    }
+                    let transaction = trade_raw.get_transaction();
+                    callback(SystemEvent::NewTransfer(TransferInfo {
+                        slot: transaction_pretty.slot,
+                        signature: transaction_pretty.signature.to_string(),
+                        tx: Some(transaction),
+                    }));
                 }
-
-                callback(SystemEvent::NewTransfer(TransferInfo {
-                    slot: transaction_pretty.slot,
-                    signature: transaction_pretty.signature.to_string(),
-                    tx: trade_raw.transaction.decode(),
-                }));
             }
             _ => {}
         }

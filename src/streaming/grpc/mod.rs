@@ -1,25 +1,17 @@
 // gRPC 相关模块
 pub mod connection;
-pub mod types;
+pub mod pool;
 pub mod subscription;
-pub mod stream_handler;
-pub mod event_processor;
+pub mod types;
 
 // 重新导出主要类型
 pub use connection::*;
-pub use types::*;
+pub use pool::*;
 pub use subscription::*;
-pub use stream_handler::*;
-pub use event_processor::*;
+pub use types::*;
 
 // 从公用模块重新导出
 pub use crate::streaming::common::{
+    BackpressureConfig, BackpressureStrategy, ConnectionConfig, MetricsManager, PerformanceMetrics,
     StreamClientConfig as ClientConfig,
-    PerformanceMetrics,
-    MetricsManager,
-    EventBatchProcessor as EventBatchCollector,
-    BackpressureStrategy,
-    BatchConfig,
-    BackpressureConfig,
-    ConnectionConfig,
 };

@@ -41,10 +41,10 @@ pub fn bonding_curve_parser(
     if let Some(bonding_curve) = bonding_curve_decode(&account.data[8..BONDING_CURVE_SIZE + 8]) {
         Some(Box::new(PumpFunBondingCurveAccountEvent {
             metadata,
-            pubkey: account.pubkey.to_string(),
+            pubkey: account.pubkey,
             executable: account.executable,
             lamports: account.lamports,
-            owner: account.owner.to_string(),
+            owner: account.owner,
             rent_epoch: account.rent_epoch,
             bonding_curve,
         }))
@@ -91,10 +91,10 @@ pub fn global_parser(
     if let Some(global) = global_decode(&account.data[8..GLOBAL_SIZE + 8]) {
         Some(Box::new(PumpFunGlobalAccountEvent {
             metadata,
-            pubkey: account.pubkey.to_string(),
+            pubkey: account.pubkey,
             executable: account.executable,
             lamports: account.lamports,
-            owner: account.owner.to_string(),
+            owner: account.owner,
             rent_epoch: account.rent_epoch,
             global,
         }))

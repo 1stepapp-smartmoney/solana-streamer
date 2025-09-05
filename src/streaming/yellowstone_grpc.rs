@@ -1,20 +1,28 @@
-use futures::{channel::mpsc, StreamExt};
-use log::error;
-use solana_sdk::pubkey::Pubkey;
-use std::sync::Arc;
 use std::thread::sleep;
-use tokio::sync::Mutex;
-use yellowstone_grpc_proto::geyser::CommitmentLevel;
-
 use crate::common::AnyResult;
 use crate::streaming::common::{
-    EventBatchProcessor, MetricsManager, PerformanceMetrics, StreamClientConfig, SubscriptionHandle,
+    EventProcessor, MetricsManager, PerformanceMetrics, StreamClientConfig, SubscriptionHandle,
 };
 use crate::streaming::event_parser::common::filter::EventTypeFilter;
 use crate::streaming::event_parser::{Protocol, UnifiedEvent};
-use crate::streaming::grpc::{EventPretty, EventProcessor, StreamHandler, SubscriptionManager};
+use crate::streaming::grpc::{
+    EventPretty, SubscriptionManager,
+};
+use crate::streaming::grpc::pool::factory;
+use anyhow::anyhow;
+use chrono::Local;
+use futures::channel::mpsc;
+use futures::{SinkExt, StreamExt};
+use log::error;
+use solana_sdk::pubkey::Pubkey;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, RwLock};
+use tokio::sync::Mutex;
+use yellowstone_grpc_proto::geyser::subscribe_update::UpdateOneof;
+use yellowstone_grpc_proto::geyser::{CommitmentLevel, SubscribeRequest, SubscribeRequestPing};
 
 /// 交易过滤器
+#[derive(Debug, Clone)]
 pub struct TransactionFilter {
     pub account_include: Vec<String>,
     pub account_exclude: Vec<String>,
@@ -22,6 +30,7 @@ pub struct TransactionFilter {
 }
 
 /// 账户过滤器
+#[derive(Debug, Clone)]
 pub struct AccountFilter {
     pub account: Vec<String>,
     pub owner: Vec<String>,
@@ -31,11 +40,15 @@ pub struct YellowstoneGrpc {
     pub endpoint: String,
     pub x_token: Option<String>,
     pub config: StreamClientConfig,
-    pub metrics: Arc<Mutex<PerformanceMetrics>>,
+    pub metrics: Arc<RwLock<PerformanceMetrics>>,
     pub subscription_manager: SubscriptionManager,
     pub metrics_manager: MetricsManager,
     pub event_processor: EventProcessor,
     pub subscription_handle: Arc<Mutex<Option<SubscriptionHandle>>>,
+    // Dynamic subscription management fields
+    pub active_subscription: Arc<AtomicBool>,
+    pub control_tx: Arc<tokio::sync::Mutex<Option<mpsc::Sender<SubscribeRequest>>>>,
+    pub current_request: Arc<tokio::sync::RwLock<Option<SubscribeRequest>>>,
 }
 
 impl YellowstoneGrpc {
@@ -51,43 +64,50 @@ impl YellowstoneGrpc {
         config: StreamClientConfig,
     ) -> AnyResult<Self> {
         let _ = rustls::crypto::ring::default_provider().install_default().ok();
-        let metrics = Arc::new(Mutex::new(PerformanceMetrics::new()));
-        let config_arc = Arc::new(config.clone());
+        let metrics = Arc::new(RwLock::new(PerformanceMetrics::new()));
 
         let subscription_manager =
             SubscriptionManager::new(endpoint.clone(), x_token.clone(), config.clone());
-        let metrics_manager =
-            MetricsManager::new(metrics.clone(), config_arc.clone(), "YellowstoneGrpc".to_string());
+        let metrics_manager = MetricsManager::new_with_metrics(
+            metrics.clone(),
+            config.enable_metrics,
+            "YellowstoneGrpc".to_string(),
+        );
         let event_processor = EventProcessor::new(metrics_manager.clone(), config.clone());
 
         Ok(Self {
             endpoint,
             x_token,
             config,
-            metrics,
+            metrics: metrics.clone(),
             subscription_manager,
             metrics_manager,
             event_processor,
             subscription_handle: Arc::new(Mutex::new(None)),
+            active_subscription: Arc::new(AtomicBool::new(false)),
+            control_tx: Arc::new(tokio::sync::Mutex::new(None)),
+            current_request: Arc::new(tokio::sync::RwLock::new(None)),
         })
     }
 
-    /// 创建高性能客户端
-    pub fn new_high_performance(endpoint: String, x_token: Option<String>) -> AnyResult<Self> {
-        Self::new_with_config(endpoint, x_token, StreamClientConfig::high_performance())
+    /// Creates a new YellowstoneGrpcClient with high-throughput configuration.
+    ///
+    /// This is a convenience method that creates a client optimized for high-concurrency scenarios
+    /// where throughput is prioritized over latency. See `StreamClientConfig::high_throughput()`
+    /// for detailed configuration information.
+    pub fn new_high_throughput(endpoint: String, x_token: Option<String>) -> AnyResult<Self> {
+        Self::new_with_config(endpoint, x_token, StreamClientConfig::high_throughput())
     }
 
-    /// 创建低延迟客户端
+    /// Creates a new YellowstoneGrpcClient with low-latency configuration.
+    ///
+    /// This is a convenience method that creates a client optimized for real-time scenarios
+    /// where latency is prioritized over throughput. See `StreamClientConfig::low_latency()`
+    /// for detailed configuration information.
     pub fn new_low_latency(endpoint: String, x_token: Option<String>) -> AnyResult<Self> {
         Self::new_with_config(endpoint, x_token, StreamClientConfig::low_latency())
     }
 
-    /// 创建即时处理客户端
-    pub fn new_immediate(endpoint: String, x_token: Option<String>) -> AnyResult<Self> {
-        let mut config = StreamClientConfig::low_latency();
-        config.enable_metrics = false;
-        Self::new_with_config(endpoint, x_token, config)
-    }
 
     /// 获取配置
     pub fn get_config(&self) -> &StreamClientConfig {
@@ -100,13 +120,13 @@ impl YellowstoneGrpc {
     }
 
     /// 获取性能指标
-    pub async fn get_metrics(&self) -> PerformanceMetrics {
-        self.metrics_manager.get_metrics().await
+    pub fn get_metrics(&self) -> PerformanceMetrics {
+        self.metrics_manager.get_metrics()
     }
 
     /// 打印性能指标
-    pub async fn print_metrics(&self) {
-        self.metrics_manager.print_metrics().await;
+    pub fn print_metrics(&self) {
+        self.metrics_manager.print_metrics();
     }
 
     /// 启用或禁用性能监控
@@ -120,6 +140,9 @@ impl YellowstoneGrpc {
         if let Some(handle) = handle_guard.take() {
             handle.stop();
         }
+        *self.control_tx.lock().await = None;
+        *self.current_request.write().await = None;
+        self.active_subscription.store(false, Ordering::Release);
     }
 
     /// Simplified immediate event subscription (recommended for simple scenarios)
@@ -148,8 +171,13 @@ impl YellowstoneGrpc {
     where
         F: Fn(Box<dyn UnifiedEvent>) + Send + Sync + 'static,
     {
-        // 如果已有活跃订阅，先停止它
-        self.stop().await;
+        if self
+            .active_subscription
+            .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
+            .is_err()
+        {
+            return Err(anyhow!("Already subscribed. Use update_subscription() to modify filters"));
+        }
 
         let mut metrics_handle = None;
         // 启动自动性能监控（如果启用）
@@ -161,223 +189,186 @@ impl YellowstoneGrpc {
             transaction_filter.account_include,
             transaction_filter.account_exclude,
             transaction_filter.account_required,
-            event_type_filter.clone(),
+            event_type_filter.as_ref(),
         );
         let accounts = self.subscription_manager.subscribe_with_account_request(
             account_filter.account,
             account_filter.owner,
-            event_type_filter.clone(),
+            event_type_filter.as_ref(),
         );
 
-        // // 订阅事件
-        // let (mut subscribe_tx, mut stream) = self
-        //     .subscription_manager
-        //     .subscribe_with_request(transactions, accounts, commitment, event_type_filter.clone())
-        //     .await?;
+        // 订阅事件
+        let (mut subscribe_tx, mut stream, subscribe_request) = self
+            .subscription_manager
+            .subscribe_with_request(transactions, accounts, commitment, event_type_filter.as_ref())
+            .await?;
 
-        // 创建通道，使用配置中的通道大小
-        let (mut tx, mut rx) = mpsc::channel::<EventPretty>(self.config.backpressure.channel_size);
+        // 用 Arc<Mutex<>> 包装 subscribe_tx 以支持多线程共享
+        let subscribe_tx = Arc::new(Mutex::new(subscribe_tx));
+        *self.current_request.write().await = Some(subscribe_request);
+        let (control_tx, mut control_rx) = mpsc::channel(100);
+        *self.control_tx.lock().await = Some(control_tx);
 
         // 启动流处理任务
-        let backpressure_strategy = self.config.backpressure.strategy;
-        let submanager = self.subscription_manager.clone();
-        let filter_clone = event_type_filter.clone();
+        let mut event_processor = self.event_processor.clone();
+        event_processor.set_protocols_and_event_type_filter(
+            protocols,
+            event_type_filter,
+            self.config.backpressure.clone(),
+            Some(Arc::new(callback)),
+            None,
+        );
         let stream_handle = tokio::spawn(async move {
             loop {
-                let trans_clone = transactions.clone();
-                let accounts_filter_clone = accounts.clone();
-                let (mut subscribe_tx, mut stream) = submanager
-                    .subscribe_with_request(trans_clone, accounts_filter_clone, commitment, filter_clone.clone())
-                    .await.unwrap();
-
-                while let Some(message) = stream.next().await {
-                    match message {
-                        Ok(msg) => {
-                            if let Err(e) = StreamHandler::handle_stream_message(
-                                msg,
-                                &mut tx,
-                                &mut subscribe_tx,
-                                backpressure_strategy,
-                            )
-                                .await
-                            {
-                                error!("Error handling message: {e:?}");
+                tokio::select! {
+                    message = stream.next() => {
+                        match message {
+                            Some(Ok(msg)) => {
+                                let created_at = msg.created_at;
+                                match msg.update_oneof {
+                                    Some(UpdateOneof::Account(account)) => {
+                                        let account_pretty = factory::create_account_pretty_pooled(account);
+                                        log::debug!("Received account: {:?}", account_pretty);
+                                        if let Err(e) = event_processor
+                                            .process_grpc_event_transaction_with_metrics(
+                                                EventPretty::Account(account_pretty),
+                                                bot_wallet,
+                                            )
+                                            .await
+                                        {
+                                            error!("Error processing account event: {e:?}");
+                                        }
+                                    }
+                                    Some(UpdateOneof::BlockMeta(sut)) => {
+                                        let block_meta_pretty = factory::create_block_meta_pretty_pooled(sut, created_at);
+                                        log::debug!("Received block meta: {:?}", block_meta_pretty);
+                                        if let Err(e) = event_processor
+                                            .process_grpc_event_transaction_with_metrics(
+                                                EventPretty::BlockMeta(block_meta_pretty),
+                                                bot_wallet,
+                                            )
+                                            .await
+                                        {
+                                            error!("Error processing block meta event: {e:?}");
+                                        }
+                                    }
+                                    Some(UpdateOneof::Transaction(sut)) => {
+                                        let transaction_pretty = factory::create_transaction_pretty_pooled(sut, created_at);
+                                        log::debug!(
+                                            "Received transaction: {} at slot {}",
+                                            transaction_pretty.signature,
+                                            transaction_pretty.slot
+                                        );
+                                        if let Err(e) = event_processor
+                                            .process_grpc_event_transaction_with_metrics(
+                                                EventPretty::Transaction(transaction_pretty),
+                                                bot_wallet,
+                                            )
+                                            .await
+                                        {
+                                            error!("Error processing transaction event: {e:?}");
+                                        }
+                                    }
+                                    Some(UpdateOneof::Ping(_)) => {
+                                        // 只在需要时获取锁，并立即释放
+                                        if let Ok(mut tx_guard) = subscribe_tx.try_lock() {
+                                            let _ = tx_guard
+                                                .send(SubscribeRequest {
+                                                    ping: Some(SubscribeRequestPing { id: 1 }),
+                                                    ..Default::default()
+                                                })
+                                                .await;
+                                        }
+                                        log::debug!("service is ping: {}", Local::now());
+                                    }
+                                    Some(UpdateOneof::Pong(_)) => {
+                                        log::debug!("service is pong: {}", Local::now());
+                                    }
+                                    _ => {
+                                        log::debug!("Received other message type");
+                                    }
+                                }
+                            }
+                            Some(Err(error)) => {
+                                error!("Stream error: {error:?}");
                                 break;
                             }
+                            None => break,
                         }
-                        Err(error) => {
-                            error!("Stream error: {error:?}");
+                    }
+                    Some(update) = control_rx.next() => {
+                        if let Err(e) = subscribe_tx.lock().await.send(update).await {
+                            error!("Failed to send subscription update: {}", e);
                             break;
                         }
                     }
                 }
-
-                sleep(std::time::Duration::from_secs(1)); // 重试间隔
-                error!("连接断开，尝试重连。。");
-
-            }
-
-
-        });
-
-        // 即时处理交易，无批处理
-        let event_processor = self.event_processor.clone();
-        let filter_clone2 = event_type_filter.clone();
-        let event_handle = tokio::spawn(async move {
-            while let Some(event_pretty) = rx.next().await {
-                if let Err(e) = event_processor
-                    .process_event_transaction_with_metrics(
-                        event_pretty,
-                        &callback,
-                        bot_wallet,
-                        protocols.clone(),
-                        filter_clone2.clone(),
-                    )
-                    .await
-                {
-                    error!("Error processing transaction: {e:?}");
-                }
             }
         });
 
-        //tokio::signal::ctrl_c().await?;
         // 保存订阅句柄
-        let subscription_handle =
-            SubscriptionHandle::new(stream_handle, event_handle, metrics_handle);
+        let subscription_handle = SubscriptionHandle::new(stream_handle, None, metrics_handle);
         let mut handle_guard = self.subscription_handle.lock().await;
         *handle_guard = Some(subscription_handle);
 
         Ok(())
     }
 
-    /// Advanced event subscription with batch processing and backpressure handling
+    /// Update subscription filters at runtime without reconnection
     ///
     /// # Parameters
-    /// * `protocols` - List of protocols to monitor
-    /// * `bot_wallet` - Optional bot wallet address for filtering related transactions
-    /// * `transaction_filter` - Transaction filter specifying accounts to include/exclude
-    /// * `account_filter` - Account filter specifying accounts and owners to monitor
-    /// * `event_filter` - Optional event filter for further event filtering, no filtering if None
-    /// * `commitment` - Optional commitment level, defaults to Confirmed
-    /// * `callback` - Event callback function that receives parsed unified events
-    ///
-    /// # Features
-    /// * Batch processing for improved throughput
-    /// * Backpressure handling to prevent memory overflow
-    /// * Automatic performance monitoring (if enabled)
-    /// * Configurable batch size and timeout
+    /// * `transaction_filter` - New transaction filter to apply
+    /// * `account_filter` - New account filter to apply
     ///
     /// # Returns
-    /// Returns `AnyResult<()>`, `Ok(())` on success, error information on failure
-    pub async fn subscribe_events_advanced<F>(
+    /// Returns `AnyResult<()>` on success, error on failure
+    pub async fn update_subscription(
         &self,
-        protocols: Vec<Protocol>,
-        bot_wallet: Option<Pubkey>,
         transaction_filter: TransactionFilter,
         account_filter: AccountFilter,
-        event_type_filter: Option<EventTypeFilter>,
-        commitment: Option<CommitmentLevel>,
-        callback: F,
-    ) -> AnyResult<()>
-    where
-        F: Fn(Box<dyn UnifiedEvent>) + Send + Sync + 'static,
-    {
-        // 如果已有活跃订阅，先停止它
-        self.stop().await;
+    ) -> AnyResult<()> {
+        let mut control_sender = {
+            let control_guard = self.control_tx.lock().await;
 
-        let mut metrics_handle = None;
-        // 启动自动性能监控（如果启用）
-        if self.config.enable_metrics {
-            metrics_handle = self.metrics_manager.start_auto_monitoring().await;
-        }
-
-        let transactions = self.subscription_manager.get_subscribe_request_filter(
-            transaction_filter.account_include,
-            transaction_filter.account_exclude,
-            transaction_filter.account_required,
-            event_type_filter.clone(),
-        );
-        let accounts = self.subscription_manager.subscribe_with_account_request(
-            account_filter.account,
-            account_filter.owner,
-            event_type_filter.clone(),
-        );
-
-        // Subscribe to events
-        let (mut subscribe_tx, mut stream) = self
-            .subscription_manager
-            .subscribe_with_request(transactions, accounts, commitment, event_type_filter.clone())
-            .await?;
-
-        // Create channel
-        let (mut tx, mut rx) = mpsc::channel::<EventPretty>(self.config.backpressure.channel_size);
-
-        // 创建批处理器，将单个事件回调转换为批量回调
-        let batch_callback = move |events: Vec<Box<dyn UnifiedEvent>>| {
-            for event in events {
-                callback(event);
+            if !self.active_subscription.load(Ordering::Acquire) {
+                return Err(anyhow!("No active subscription to update"));
             }
+
+            control_guard
+                .as_ref()
+                .ok_or_else(|| anyhow!("No active subscription to update"))?
+                .clone()
         };
 
-        let mut batch_processor = EventBatchProcessor::new(
-            batch_callback,
-            self.config.batch.batch_size,
-            self.config.batch.batch_timeout_ms,
-        );
+        let mut request = self
+            .current_request
+            .read()
+            .await
+            .as_ref()
+            .ok_or_else(|| anyhow!("No active subscription"))?
+            .clone();
 
-        // Start task to process the stream
-        let backpressure_strategy = self.config.backpressure.strategy;
-        let stream_handle = tokio::spawn(async move {
-            while let Some(message) = stream.next().await {
-                match message {
-                    Ok(msg) => {
-                        if let Err(e) = StreamHandler::handle_stream_message(
-                            msg,
-                            &mut tx,
-                            &mut subscribe_tx,
-                            backpressure_strategy,
-                        )
-                        .await
-                        {
-                            error!("Error handling message: {e:?}");
-                            break;
-                        }
-                    }
-                    Err(error) => {
-                        error!("Stream error: {error:?}");
-                        break;
-                    }
-                }
-            }
-        });
+        request.transactions = self
+            .subscription_manager
+            .get_subscribe_request_filter(
+                transaction_filter.account_include,
+                transaction_filter.account_exclude,
+                transaction_filter.account_required,
+                None,
+            )
+            .unwrap_or_default();
 
-        // Process transactions with batch processing
-        let event_processor = self.event_processor.clone();
-        let event_handle = tokio::spawn(async move {
-            while let Some(event_pretty) = rx.next().await {
-                if let Err(e) = event_processor
-                    .process_event_transaction_with_batch(
-                        event_pretty,
-                        &mut batch_processor,
-                        bot_wallet,
-                        protocols.clone(),
-                        event_type_filter.clone(),
-                    )
-                    .await
-                {
-                    error!("Error processing transaction: {e:?}");
-                }
-            }
+        request.accounts = self
+            .subscription_manager
+            .subscribe_with_account_request(account_filter.account, account_filter.owner, None)
+            .unwrap_or_default();
 
-            // 处理剩余的事件
-            batch_processor.flush();
-        });
+        control_sender
+            .send(request.clone())
+            .await
+            .map_err(|e| anyhow!("Failed to send update: {}", e))?;
 
-        // 保存订阅句柄
-        let subscription_handle =
-            SubscriptionHandle::new(stream_handle, event_handle, metrics_handle);
-        let mut handle_guard = self.subscription_handle.lock().await;
-        *handle_guard = Some(subscription_handle);
+        *self.current_request.write().await = Some(request);
 
         Ok(())
     }
@@ -395,17 +386,9 @@ impl Clone for YellowstoneGrpc {
             metrics_manager: self.metrics_manager.clone(),
             event_processor: self.event_processor.clone(),
             subscription_handle: self.subscription_handle.clone(), // 共享同一个 Arc<Mutex<>>
-        }
-    }
-}
-
-// 实现 Clone trait 以支持模块间共享
-impl Clone for EventProcessor {
-    fn clone(&self) -> Self {
-        Self {
-            metrics_manager: self.metrics_manager.clone(),
-            config: self.config.clone(),
-            parser_cache: self.parser_cache.clone(),
+            active_subscription: self.active_subscription.clone(),
+            control_tx: self.control_tx.clone(),
+            current_request: self.current_request.clone(),
         }
     }
 }

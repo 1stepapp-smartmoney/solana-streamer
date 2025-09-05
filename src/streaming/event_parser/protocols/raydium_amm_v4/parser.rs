@@ -1,15 +1,14 @@
-use std::collections::HashMap;
+use solana_sdk::pubkey::Pubkey;
 
-use prost_types::Timestamp;
-use solana_sdk::{instruction::CompiledInstruction, pubkey::Pubkey};
-use solana_transaction_status::UiCompiledInstruction;
-
-use crate::streaming::event_parser::{
-    common::{read_u64_le, EventMetadata, EventType, ProtocolType},
-    core::traits::{EventParser, GenericEventParseConfig, GenericEventParser, UnifiedEvent},
-    protocols::raydium_amm_v4::{
-        discriminators, RaydiumAmmV4DepositEvent, RaydiumAmmV4Initialize2Event,
-        RaydiumAmmV4SwapEvent, RaydiumAmmV4WithdrawEvent, RaydiumAmmV4WithdrawPnlEvent,
+use crate::{
+    impl_event_parser_delegate,
+    streaming::event_parser::{
+        common::{read_u64_le, EventMetadata, EventType, ProtocolType},
+        core::traits::{GenericEventParseConfig, GenericEventParser, UnifiedEvent},
+        protocols::raydium_amm_v4::{
+            discriminators, RaydiumAmmV4DepositEvent, RaydiumAmmV4Initialize2Event,
+            RaydiumAmmV4SwapEvent, RaydiumAmmV4WithdrawEvent, RaydiumAmmV4WithdrawPnlEvent,
+        },
     },
 };
 
@@ -35,7 +34,7 @@ impl RaydiumAmmV4EventParser {
             GenericEventParseConfig {
                 program_id: RAYDIUM_AMM_V4_PROGRAM_ID,
                 protocol_type: ProtocolType::RaydiumAmmV4,
-                inner_instruction_discriminator: "",
+                inner_instruction_discriminator: &[],
                 instruction_discriminator: discriminators::SWAP_BASE_IN,
                 event_type: EventType::RaydiumAmmV4SwapBaseIn,
                 inner_instruction_parser: None,
@@ -44,7 +43,7 @@ impl RaydiumAmmV4EventParser {
             GenericEventParseConfig {
                 program_id: RAYDIUM_AMM_V4_PROGRAM_ID,
                 protocol_type: ProtocolType::RaydiumAmmV4,
-                inner_instruction_discriminator: "",
+                inner_instruction_discriminator: &[],
                 instruction_discriminator: discriminators::SWAP_BASE_OUT,
                 event_type: EventType::RaydiumAmmV4SwapBaseOut,
                 inner_instruction_parser: None,
@@ -53,7 +52,7 @@ impl RaydiumAmmV4EventParser {
             GenericEventParseConfig {
                 program_id: RAYDIUM_AMM_V4_PROGRAM_ID,
                 protocol_type: ProtocolType::RaydiumAmmV4,
-                inner_instruction_discriminator: "",
+                inner_instruction_discriminator: &[],
                 instruction_discriminator: discriminators::DEPOSIT,
                 event_type: EventType::RaydiumAmmV4Deposit,
                 inner_instruction_parser: None,
@@ -62,7 +61,7 @@ impl RaydiumAmmV4EventParser {
             GenericEventParseConfig {
                 program_id: RAYDIUM_AMM_V4_PROGRAM_ID,
                 protocol_type: ProtocolType::RaydiumAmmV4,
-                inner_instruction_discriminator: "",
+                inner_instruction_discriminator: &[],
                 instruction_discriminator: discriminators::INITIALIZE2,
                 event_type: EventType::RaydiumAmmV4Initialize2,
                 inner_instruction_parser: None,
@@ -71,7 +70,7 @@ impl RaydiumAmmV4EventParser {
             GenericEventParseConfig {
                 program_id: RAYDIUM_AMM_V4_PROGRAM_ID,
                 protocol_type: ProtocolType::RaydiumAmmV4,
-                inner_instruction_discriminator: "",
+                inner_instruction_discriminator: &[],
                 instruction_discriminator: discriminators::WITHDRAW,
                 event_type: EventType::RaydiumAmmV4Withdraw,
                 inner_instruction_parser: None,
@@ -80,7 +79,7 @@ impl RaydiumAmmV4EventParser {
             GenericEventParseConfig {
                 program_id: RAYDIUM_AMM_V4_PROGRAM_ID,
                 protocol_type: ProtocolType::RaydiumAmmV4,
-                inner_instruction_discriminator: "",
+                inner_instruction_discriminator: &[],
                 instruction_discriminator: discriminators::WITHDRAW_PNL,
                 event_type: EventType::RaydiumAmmV4WithdrawPnl,
                 inner_instruction_parser: None,
@@ -102,12 +101,6 @@ impl RaydiumAmmV4EventParser {
         if accounts.len() < 17 {
             return None;
         }
-
-        let mut metadata = metadata;
-        metadata.set_id(format!(
-            "{}-{}-{}-{}",
-            metadata.signature, accounts[3], accounts[10], accounts[11]
-        ));
 
         Some(Box::new(RaydiumAmmV4WithdrawPnlEvent {
             metadata,
@@ -141,12 +134,6 @@ impl RaydiumAmmV4EventParser {
             return None;
         }
         let amount = read_u64_le(data, 0)?;
-
-        let mut metadata = metadata;
-        metadata.set_id(format!(
-            "{}-{}-{}-{}",
-            metadata.signature, accounts[3], accounts[10], accounts[11]
-        ));
 
         Some(Box::new(RaydiumAmmV4WithdrawEvent {
             metadata,
@@ -190,12 +177,6 @@ impl RaydiumAmmV4EventParser {
         let open_time = read_u64_le(data, 1)?;
         let init_pc_amount = read_u64_le(data, 9)?;
         let init_coin_amount = read_u64_le(data, 17)?;
-
-        let mut metadata = metadata;
-        metadata.set_id(format!(
-            "{}-{}-{}-{}",
-            metadata.signature, accounts[3], accounts[10], accounts[11]
-        ));
 
         Some(Box::new(RaydiumAmmV4Initialize2Event {
             metadata,
@@ -241,12 +222,6 @@ impl RaydiumAmmV4EventParser {
         let max_pc_amount = read_u64_le(data, 8)?;
         let base_side = read_u64_le(data, 16)?;
 
-        let mut metadata = metadata;
-        metadata.set_id(format!(
-            "{}-{}-{}-{}",
-            metadata.signature, accounts[3], accounts[10], accounts[11]
-        ));
-
         Some(Box::new(RaydiumAmmV4DepositEvent {
             metadata,
             max_coin_amount,
@@ -281,12 +256,6 @@ impl RaydiumAmmV4EventParser {
         }
         let max_amount_in = read_u64_le(data, 0)?;
         let amount_out = read_u64_le(data, 8)?;
-
-        let mut metadata = metadata;
-        metadata.set_id(format!(
-            "{}-{}-{}-{}",
-            metadata.signature, accounts[3], accounts[10], accounts[11]
-        ));
 
         let mut accounts = accounts.to_vec();
         if accounts.len() == 17 {
@@ -335,12 +304,6 @@ impl RaydiumAmmV4EventParser {
         let amount_in = read_u64_le(data, 0)?;
         let minimum_amount_out = read_u64_le(data, 8)?;
 
-        let mut metadata = metadata;
-        metadata.set_id(format!(
-            "{}-{}-{}-{}",
-            metadata.signature, accounts[3], accounts[10], accounts[11]
-        ));
-
         let mut accounts = accounts.to_vec();
         if accounts.len() == 17 {
             // 添加一个默认的 Pubkey 作为 amm_target_orders 的占位符
@@ -377,59 +340,4 @@ impl RaydiumAmmV4EventParser {
     }
 }
 
-#[async_trait::async_trait]
-impl EventParser for RaydiumAmmV4EventParser {
-    fn inner_instruction_configs(&self) -> HashMap<&'static str, Vec<GenericEventParseConfig>> {
-        self.inner.inner_instruction_configs()
-    }
-    fn instruction_configs(&self) -> HashMap<Vec<u8>, Vec<GenericEventParseConfig>> {
-        self.inner.instruction_configs()
-    }
-    fn parse_events_from_inner_instruction(
-        &self,
-        inner_instruction: &UiCompiledInstruction,
-        signature: &str,
-        slot: u64,
-        block_time: Option<Timestamp>,
-        program_received_time_ms: i64,
-        index: String,
-    ) -> Vec<Box<dyn UnifiedEvent>> {
-        self.inner.parse_events_from_inner_instruction(
-            inner_instruction,
-            signature,
-            slot,
-            block_time,
-            program_received_time_ms,
-            index,
-        )
-    }
-
-    fn parse_events_from_instruction(
-        &self,
-        instruction: &CompiledInstruction,
-        accounts: &[Pubkey],
-        signature: &str,
-        slot: u64,
-        block_time: Option<Timestamp>,
-        program_received_time_ms: i64,
-        index: String,
-    ) -> Vec<Box<dyn UnifiedEvent>> {
-        self.inner.parse_events_from_instruction(
-            instruction,
-            accounts,
-            signature,
-            slot,
-            block_time,
-            program_received_time_ms,
-            index,
-        )
-    }
-
-    fn should_handle(&self, program_id: &Pubkey) -> bool {
-        self.inner.should_handle(program_id)
-    }
-
-    fn supported_program_ids(&self) -> Vec<Pubkey> {
-        self.inner.supported_program_ids()
-    }
-}
+impl_event_parser_delegate!(RaydiumAmmV4EventParser);

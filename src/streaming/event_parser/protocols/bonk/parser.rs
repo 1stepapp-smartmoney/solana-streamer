@@ -1,14 +1,16 @@
-use std::collections::HashMap;
+use solana_sdk::pubkey::Pubkey;
 
-use prost_types::Timestamp;
-use solana_sdk::{instruction::CompiledInstruction, pubkey::Pubkey};
-use solana_transaction_status::UiCompiledInstruction;
-
-use crate::streaming::event_parser::{
-    common::{utils::*, EventMetadata, EventType, ProtocolType},
-    core::traits::{EventParser, GenericEventParseConfig, GenericEventParser, UnifiedEvent},
-    protocols::bonk::{
-        bonk_pool_create_event_log_decode, bonk_trade_event_log_decode, discriminators, AmmFeeOn, BonkMigrateToAmmEvent, BonkMigrateToCpswapEvent, BonkPoolCreateEvent, BonkTradeEvent, ConstantCurve, CurveParams, FixedCurve, LinearCurve, MintParams, TradeDirection, VestingParams
+use crate::{
+    impl_event_parser_delegate,
+    streaming::event_parser::{
+        common::{utils::*, EventMetadata, EventType, ProtocolType},
+        core::traits::{GenericEventParseConfig, GenericEventParser, UnifiedEvent},
+        protocols::bonk::{
+            bonk_pool_create_event_log_decode, bonk_trade_event_log_decode, discriminators,
+            AmmFeeOn, BonkMigrateToAmmEvent, BonkMigrateToCpswapEvent, BonkPoolCreateEvent,
+            BonkTradeEvent, ConstantCurve, CurveParams, FixedCurve, LinearCurve, MintParams,
+            TradeDirection, VestingParams,
+        },
     },
 };
 
@@ -88,7 +90,7 @@ impl BonkEventParser {
             GenericEventParseConfig {
                 program_id: BONK_PROGRAM_ID,
                 protocol_type: ProtocolType::Bonk,
-                inner_instruction_discriminator: "",
+                inner_instruction_discriminator: &[],
                 instruction_discriminator: discriminators::MIGRATE_TO_AMM,
                 event_type: EventType::BonkMigrateToAmm,
                 inner_instruction_parser: None,
@@ -97,7 +99,7 @@ impl BonkEventParser {
             GenericEventParseConfig {
                 program_id: BONK_PROGRAM_ID,
                 protocol_type: ProtocolType::Bonk,
-                inner_instruction_discriminator: "",
+                inner_instruction_discriminator: &[],
                 instruction_discriminator: discriminators::MIGRATE_TO_CP_SWAP,
                 event_type: EventType::BonkMigrateToCpswap,
                 inner_instruction_parser: None,
@@ -116,8 +118,6 @@ impl BonkEventParser {
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
         if let Some(event) = bonk_pool_create_event_log_decode(data) {
-            let mut metadata = metadata;
-            metadata.set_id(metadata.signature.to_string());
             Some(Box::new(BonkPoolCreateEvent { metadata, ..event }))
         } else {
             None
@@ -130,8 +130,6 @@ impl BonkEventParser {
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
         if let Some(event) = bonk_trade_event_log_decode(data) {
-            let mut metadata = metadata;
-            metadata.set_id(format!("{}-{}", metadata.signature, event.pool_state));
             if metadata.event_type == EventType::BonkBuyExactIn
                 || metadata.event_type == EventType::BonkBuyExactOut
             {
@@ -163,9 +161,6 @@ impl BonkEventParser {
         let amount_in = read_u64_le(data, 0)?;
         let minimum_amount_out = read_u64_le(data, 8)?;
         let share_fee_rate = read_u64_le(data, 16)?;
-
-        let mut metadata = metadata;
-        metadata.set_id(format!("{}-{}", metadata.signature, accounts[4]));
 
         Some(Box::new(BonkTradeEvent {
             metadata,
@@ -205,9 +200,6 @@ impl BonkEventParser {
         let maximum_amount_in = read_u64_le(data, 8)?;
         let share_fee_rate = read_u64_le(data, 16)?;
 
-        let mut metadata = metadata;
-        metadata.set_id(format!("{}-{}", metadata.signature, accounts[4]));
-
         Some(Box::new(BonkTradeEvent {
             metadata,
             amount_out,
@@ -246,9 +238,6 @@ impl BonkEventParser {
         let minimum_amount_out = read_u64_le(data, 8)?;
         let share_fee_rate = read_u64_le(data, 16)?;
 
-        let mut metadata = metadata;
-        metadata.set_id(format!("{}-{}", metadata.signature, accounts[4]));
-
         Some(Box::new(BonkTradeEvent {
             metadata,
             amount_in,
@@ -286,9 +275,6 @@ impl BonkEventParser {
         let amount_out = read_u64_le(data, 0)?;
         let maximum_amount_in = read_u64_le(data, 8)?;
         let share_fee_rate = read_u64_le(data, 16)?;
-
-        let mut metadata = metadata;
-        metadata.set_id(format!("{}-{}", metadata.signature, accounts[4]));
 
         Some(Box::new(BonkTradeEvent {
             metadata,
@@ -330,9 +316,6 @@ impl BonkEventParser {
         let curve_param = Self::parse_curve_params(data, &mut offset)?;
         let vesting_param = Self::parse_vesting_params(data, &mut offset)?;
 
-        let mut metadata = metadata;
-        metadata.set_id(metadata.signature.to_string());
-
         Some(Box::new(BonkPoolCreateEvent {
             metadata,
             payer: accounts[0],
@@ -366,9 +349,6 @@ impl BonkEventParser {
         let curve_param = Self::parse_curve_params(data, &mut offset)?;
         let vesting_param = Self::parse_vesting_params(data, &mut offset)?;
         let amm_fee_on = data[offset];
-
-        let mut metadata = metadata;
-        metadata.set_id(metadata.signature.to_string());
 
         Some(Box::new(BonkPoolCreateEvent {
             metadata,
@@ -512,9 +492,6 @@ impl BonkEventParser {
         let quote_lot_size = u64::from_le_bytes(data[8..16].try_into().unwrap());
         let market_vault_signer_nonce = data[16];
 
-        let mut metadata = metadata;
-        metadata.set_id(metadata.signature.to_string());
-
         Some(Box::new(BonkMigrateToAmmEvent {
             metadata,
             base_lot_size,
@@ -562,9 +539,6 @@ impl BonkEventParser {
         accounts: &[Pubkey],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        let mut metadata = metadata;
-        metadata.set_id(metadata.signature.to_string());
-
         Some(Box::new(BonkMigrateToCpswapEvent {
             metadata,
             payer: accounts[0],
@@ -601,59 +575,4 @@ impl BonkEventParser {
     }
 }
 
-#[async_trait::async_trait]
-impl EventParser for BonkEventParser {
-    fn inner_instruction_configs(&self) -> HashMap<&'static str, Vec<GenericEventParseConfig>> {
-        self.inner.inner_instruction_configs()
-    }
-    fn instruction_configs(&self) -> HashMap<Vec<u8>, Vec<GenericEventParseConfig>> {
-        self.inner.instruction_configs()
-    }
-    fn parse_events_from_inner_instruction(
-        &self,
-        inner_instruction: &UiCompiledInstruction,
-        signature: &str,
-        slot: u64,
-        block_time: Option<Timestamp>,
-        program_received_time_ms: i64,
-        index: String,
-    ) -> Vec<Box<dyn UnifiedEvent>> {
-        self.inner.parse_events_from_inner_instruction(
-            inner_instruction,
-            signature,
-            slot,
-            block_time,
-            program_received_time_ms,
-            index,
-        )
-    }
-
-    fn parse_events_from_instruction(
-        &self,
-        instruction: &CompiledInstruction,
-        accounts: &[Pubkey],
-        signature: &str,
-        slot: u64,
-        block_time: Option<Timestamp>,
-        program_received_time_ms: i64,
-        index: String,
-    ) -> Vec<Box<dyn UnifiedEvent>> {
-        self.inner.parse_events_from_instruction(
-            instruction,
-            accounts,
-            signature,
-            slot,
-            block_time,
-            program_received_time_ms,
-            index,
-        )
-    }
-
-    fn should_handle(&self, program_id: &Pubkey) -> bool {
-        self.inner.should_handle(program_id)
-    }
-
-    fn supported_program_ids(&self) -> Vec<Pubkey> {
-        self.inner.supported_program_ids()
-    }
-}
+impl_event_parser_delegate!(BonkEventParser);

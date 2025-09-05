@@ -24,11 +24,12 @@ A lightweight Rust library for real-time event streaming from Solana DEX trading
 11. **Performance Monitoring**: Built-in performance metrics monitoring, including event processing speed, etc.
 12. **Memory Optimization**: Object pooling and caching mechanisms to reduce memory allocations
 13. **Flexible Configuration System**: Support for custom batch sizes, backpressure strategies, channel sizes, and other parameters
-14. **Preset Configurations**: Provides high-performance, low-latency, ordered processing, and other preset configurations
-15. **Backpressure Handling**: Supports blocking, dropping, retrying, ordered, and other backpressure strategies
+14. **Preset Configurations**: Provides high-throughput and low-latency preset configurations optimized for different use cases
+15. **Backpressure Handling**: Supports blocking and dropping backpressure strategies
 16. **Runtime Configuration Updates**: Supports dynamic configuration parameter updates at runtime
 17. **Full Function Performance Monitoring**: All subscribe_events functions support performance monitoring, automatically collecting and reporting performance metrics
 18. **Graceful Shutdown**: Support for programmatic stop() method for clean shutdown
+19. **Dynamic Subscription Management**: Runtime filter updates without reconnection, enabling adaptive monitoring strategies
 
 ## Installation
 
@@ -45,14 +46,73 @@ Add the dependency to your `Cargo.toml`:
 
 ```toml
 # Add to your Cargo.toml
-solana-streamer-sdk = { path = "./solana-streamer", version = "0.3.10" }
+solana-streamer-sdk = { path = "./solana-streamer", version = "0.4.1" }
 ```
 
 ### Use crates.io
 
 ```toml
 # Add to your Cargo.toml
-solana-streamer-sdk = "0.3.10"
+solana-streamer-sdk = "0.4.1"
+```
+
+## Configuration System
+
+### Preset Configurations
+
+The library provides three preset configurations optimized for different use cases:
+
+#### 1. High Throughput Configuration (`high_throughput()`)
+
+Optimized for high-concurrency scenarios, prioritizing throughput over latency:
+
+```rust
+let config = StreamClientConfig::high_throughput();
+// Or use convenience methods
+let grpc = YellowstoneGrpc::new_high_throughput(endpoint, token)?;
+let shred = ShredStreamGrpc::new_high_throughput(endpoint).await?;
+```
+
+**Features:**
+- **Backpressure Strategy**: Drop - drops messages during high load to avoid blocking
+- **Buffer Size**: 5,000 permits to handle burst traffic
+- **Use Case**: Scenarios where you need to process large volumes of data and can tolerate occasional message drops during peak loads
+
+#### 2. Low Latency Configuration (`low_latency()`)
+
+Optimized for real-time scenarios, prioritizing latency over throughput:
+
+```rust
+let config = StreamClientConfig::low_latency();
+// Or use convenience methods
+let grpc = YellowstoneGrpc::new_low_latency(endpoint, token)?;
+let shred = ShredStreamGrpc::new_low_latency(endpoint).await?;
+```
+
+**Features:**
+- **Backpressure Strategy**: Block - ensures no data loss
+- **Buffer Size**: 4000 permits for balanced throughput and latency
+- **Immediate Processing**: No buffering, processes events immediately
+- **Use Case**: Scenarios where every millisecond counts and you cannot afford to lose any events, such as trading applications or real-time monitoring
+
+
+### Custom Configuration
+
+You can also create custom configurations:
+
+```rust
+let config = StreamClientConfig {
+    connection: ConnectionConfig {
+        connect_timeout: 30,
+        request_timeout: 120,
+        max_decoding_message_size: 20 * 1024 * 1024, // 20MB
+    },
+    backpressure: BackpressureConfig {
+        permits: 2000,
+        strategy: BackpressureStrategy::Block,
+    },
+    enable_metrics: true,
+};
 ```
 
 ## Usage Examples
@@ -71,6 +131,20 @@ This example demonstrates:
 - Transaction details extraction including fees, logs, and compute units
 
 The example uses a predefined transaction signature and shows how to extract protocol-specific events from the transaction data.
+
+### Dynamic Subscription Management Example
+
+Test runtime filter updates without reconnection:
+
+```bash
+cargo run --example dynamic_subscription
+```
+
+This example demonstrates:
+- Creating initial subscriptions with specific protocol filters
+- Updating subscription filters at runtime without reconnection
+- Single subscription enforcement and proper error handling
+- Clean shutdown and resource management
 
 ### Advanced Usage - Complete Example
 
@@ -469,6 +543,32 @@ let event_type_filter = Some(EventTypeFilter {
     ] 
 });
 ```
+
+## Dynamic Subscription Management
+
+Update subscription filters at runtime without reconnecting to the stream.
+
+```rust
+// Update filters on existing subscription
+grpc.update_subscription(
+    TransactionFilter {
+        account_include: vec!["new_program_id".to_string()],
+        account_exclude: vec![],
+        account_required: vec![],
+    },
+    AccountFilter {
+        account: vec![],
+        owner: vec![],
+    },
+).await?;
+```
+
+- **No Reconnection**: Filter changes apply immediately without closing the stream
+- **Atomic Updates**: Both transaction and account filters updated together
+- **Single Subscription**: One active subscription per client instance
+- **Compatible**: Works with both immediate and advanced subscription methods
+
+Note: Multiple subscription attempts on the same client return an error.
 
 ## Supported Protocols
 

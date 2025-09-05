@@ -1,10 +1,10 @@
-use solana_sdk::signature::Signature;
-use solana_transaction_status::{EncodedTransactionWithStatusMeta, UiTransactionEncoding};
+use solana_sdk::{pubkey::Pubkey, signature::Signature};
+use solana_transaction_status::{TransactionWithStatusMeta, VersionedTransactionWithStatusMeta};
 use std::{collections::HashMap, fmt};
 use yellowstone_grpc_proto::{
     geyser::{
-        SubscribeRequestFilterAccounts, SubscribeRequestFilterTransactions, SubscribeUpdateAccount,
-        SubscribeUpdateBlockMeta, SubscribeUpdateTransaction,
+        SubscribeRequestFilterAccounts, SubscribeRequestFilterTransactions,
+        SubscribeUpdateTransactionInfo,
     },
     prost_types::Timestamp,
 };
@@ -12,23 +12,24 @@ use yellowstone_grpc_proto::{
 pub type TransactionsFilterMap = HashMap<String, SubscribeRequestFilterTransactions>;
 pub type AccountsFilterMap = HashMap<String, SubscribeRequestFilterAccounts>;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum EventPretty {
     BlockMeta(BlockMetaPretty),
     Transaction(TransactionPretty),
     Account(AccountPretty),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct AccountPretty {
     pub slot: u64,
-    pub signature: String,
-    pub pubkey: String,
+    pub signature: Signature,
+    pub pubkey: Pubkey,
     pub executable: bool,
     pub lamports: u64,
-    pub owner: String,
+    pub owner: Pubkey,
     pub rent_epoch: u64,
     pub data: Vec<u8>,
+    pub recv_us: i64,
 }
 
 impl fmt::Debug for AccountPretty {
@@ -46,11 +47,12 @@ impl fmt::Debug for AccountPretty {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct BlockMetaPretty {
     pub slot: u64,
     pub block_hash: String,
     pub block_time: Option<Timestamp>,
+    pub recv_us: i64,
 }
 
 impl fmt::Debug for BlockMetaPretty {
@@ -59,6 +61,7 @@ impl fmt::Debug for BlockMetaPretty {
             .field("slot", &self.slot)
             .field("block_hash", &self.block_hash)
             .field("block_time", &self.block_time)
+            .field("recv_us", &self.recv_us)
             .finish()
     }
 }
@@ -66,77 +69,99 @@ impl fmt::Debug for BlockMetaPretty {
 #[derive(Clone)]
 pub struct TransactionPretty {
     pub slot: u64,
+    pub transaction_index: Option<u64>, // 新增：交易在slot中的索引
     pub block_hash: String,
     pub block_time: Option<Timestamp>,
     pub signature: Signature,
     pub is_vote: bool,
-    pub tx: EncodedTransactionWithStatusMeta,
+    pub recv_us: i64,
+    pub grpc_tx: SubscribeUpdateTransactionInfo,
 }
 
 impl fmt::Debug for TransactionPretty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        struct TxWrap<'a>(&'a EncodedTransactionWithStatusMeta);
-        impl<'a> fmt::Debug for TxWrap<'a> {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                let serialized = serde_json::to_string(self.0).expect("failed to serialize");
-                fmt::Display::fmt(&serialized, f)
-            }
-        }
-
         f.debug_struct("TransactionPretty")
             .field("slot", &self.slot)
+            .field("transaction_index", &self.transaction_index)
             .field("signature", &self.signature)
             .field("is_vote", &self.is_vote)
-            .field("tx", &TxWrap(&self.tx))
+            .field("recv_us", &self.recv_us)
             .finish()
     }
 }
 
-impl From<SubscribeUpdateAccount> for AccountPretty {
-    fn from(account: SubscribeUpdateAccount) -> Self {
-        let account_info = account.account.unwrap();
+impl Default for TransactionPretty {
+    fn default() -> Self {
         Self {
-            slot: account.slot,
-            signature: bs58::encode(&account_info.txn_signature.unwrap_or_default()).into_string(),
-            pubkey: bs58::encode(&account_info.pubkey).into_string(),
-            executable: account_info.executable,
-            lamports: account_info.lamports,
-            owner: bs58::encode(&account_info.owner).into_string(),
-            rent_epoch: account_info.rent_epoch,
-            data: account_info.data,
+            slot: 0,
+            transaction_index: None,
+            block_hash: String::new(),
+            block_time: None,
+            signature: Signature::default(),
+            is_vote: false,
+            grpc_tx: SubscribeUpdateTransactionInfo::default(),
+            recv_us: 0,
         }
     }
 }
 
-impl From<(SubscribeUpdateBlockMeta, Option<Timestamp>)> for BlockMetaPretty {
-    fn from(
-        (SubscribeUpdateBlockMeta { slot, blockhash, .. }, block_time): (
-            SubscribeUpdateBlockMeta,
-            Option<Timestamp>,
-        ),
-    ) -> Self {
-        Self { block_hash: blockhash.to_string(), block_time, slot }
-    }
-}
+// impl From<SubscribeUpdateAccount> for AccountPretty {
+//     fn from(account: SubscribeUpdateAccount) -> Self {
+//         let account_info = account.account.unwrap();
+//         Self {
+//             slot: account.slot,
+//             signature: if let Some(txn_signature) = account_info.txn_signature {
+//                 Signature::try_from(txn_signature.as_slice()).expect("valid signature")
+//             } else {
+//                 Signature::default()
+//             },
+//             pubkey: Pubkey::try_from(account_info.pubkey.as_slice()).expect("valid pubkey"),
+//             executable: account_info.executable,
+//             lamports: account_info.lamports,
+//             owner: Pubkey::try_from(account_info.owner.as_slice()).expect("valid pubkey"),
+//             rent_epoch: account_info.rent_epoch,
+//             data: account_info.data,
+//             recv_us: get_high_perf_clock(),
+//         }
+//     }
+// }
 
-impl From<(SubscribeUpdateTransaction, Option<Timestamp>)> for TransactionPretty {
-    fn from(
-        (SubscribeUpdateTransaction { transaction, slot }, block_time): (
-            SubscribeUpdateTransaction,
-            Option<Timestamp>,
-        ),
-    ) -> Self {
-        let tx = transaction.expect("should be defined");
-        Self {
-            slot,
-            block_time,
-            block_hash: "".to_string(),
-            signature: Signature::try_from(tx.signature.as_slice()).expect("valid signature"),
-            is_vote: tx.is_vote,
-            tx: yellowstone_grpc_proto::convert_from::create_tx_with_meta(tx)
-                .expect("valid tx with meta")
-                .encode(UiTransactionEncoding::Base64, Some(u8::MAX), true)
-                .expect("failed to encode"),
-        }
-    }
-}
+// impl From<(SubscribeUpdateBlockMeta, Option<Timestamp>)> for BlockMetaPretty {
+//     fn from(
+//         (SubscribeUpdateBlockMeta { slot, blockhash, .. }, block_time): (
+//             SubscribeUpdateBlockMeta,
+//             Option<Timestamp>,
+//         ),
+//     ) -> Self {
+//         Self {
+//             block_hash: blockhash,
+//             block_time,
+//             slot,
+//             recv_us: get_high_perf_clock(),
+//         }
+//     }
+// }
+
+// impl From<(SubscribeUpdateTransaction, Option<Timestamp>)> for TransactionPretty {
+//     fn from(
+//         (SubscribeUpdateTransaction { transaction, slot }, block_time): (
+//             SubscribeUpdateTransaction,
+//             Option<Timestamp>,
+//         ),
+//     ) -> Self {
+//         let tx = transaction.expect("should be defined");
+//         // 根据用户说明，交易索引在 transaction.index 中
+//         let transaction_index = tx.index;
+//         Self {
+//             slot,
+//             transaction_index: Some(transaction_index), // 提取交易索引
+//             block_time,
+//             block_hash: String::new(),
+//             signature: Signature::try_from(tx.signature.as_slice()).expect("valid signature"),
+//             is_vote: tx.is_vote,
+//             tx: yellowstone_grpc_proto::convert_from::create_tx_with_meta(tx)
+//                 .expect("valid tx with meta"),
+//             recv_us: get_high_perf_clock(),
+//         }
+//     }
+// }

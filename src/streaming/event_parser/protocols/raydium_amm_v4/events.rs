@@ -9,6 +9,7 @@ use solana_sdk::pubkey::Pubkey;
 /// 交易
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
 pub struct RaydiumAmmV4SwapEvent {
+    #[borsh(skip)]
     pub metadata: EventMetadata,
     // base in
     pub amount_in: u64,
@@ -42,6 +43,7 @@ impl_unified_event!(RaydiumAmmV4SwapEvent,);
 /// 添加流动性
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
 pub struct RaydiumAmmV4DepositEvent {
+    #[borsh(skip)]
     pub metadata: EventMetadata,
     pub max_coin_amount: u64,
     pub max_pc_amount: u64,
@@ -67,6 +69,7 @@ impl_unified_event!(RaydiumAmmV4DepositEvent,);
 /// 初始化
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
 pub struct RaydiumAmmV4Initialize2Event {
+    #[borsh(skip)]
     pub metadata: EventMetadata,
     pub nonce: u8,
     pub open_time: u64,
@@ -100,6 +103,7 @@ impl_unified_event!(RaydiumAmmV4Initialize2Event,);
 /// 移除流动性
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
 pub struct RaydiumAmmV4WithdrawEvent {
+    #[borsh(skip)]
     pub metadata: EventMetadata,
     pub amount: u64,
 
@@ -131,6 +135,7 @@ impl_unified_event!(RaydiumAmmV4WithdrawEvent,);
 /// 提现
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
 pub struct RaydiumAmmV4WithdrawPnlEvent {
+    #[borsh(skip)]
     pub metadata: EventMetadata,
 
     pub token_program: Pubkey,
@@ -156,11 +161,12 @@ impl_unified_event!(RaydiumAmmV4WithdrawPnlEvent,);
 /// 池信息
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
 pub struct RaydiumAmmV4AmmInfoAccountEvent {
+    #[borsh(skip)]
     pub metadata: EventMetadata,
-    pub pubkey: String,
+    pub pubkey: Pubkey,
     pub executable: bool,
     pub lamports: u64,
-    pub owner: String,
+    pub owner: Pubkey,
     pub rent_epoch: u64,
     pub amm_info: AmmInfo,
 }

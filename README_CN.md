@@ -24,8 +24,8 @@
 11. **性能监控**: 内置性能指标监控，包括事件处理速度等
 12. **内存优化**: 对象池和缓存机制减少内存分配
 13. **灵活配置系统**: 支持自定义批处理大小、背压策略、通道大小等参数
-14. **预设配置**: 提供高性能、低延迟、有序处理等预设配置
-15. **背压处理**: 支持阻塞、丢弃、重试、有序等多种背压策略
+14. **预设配置**: 提供高吞吐量、低延迟等预设配置，针对不同使用场景优化
+15. **背压处理**: 支持阻塞、丢弃等背压策略
 16. **运行时配置更新**: 支持在运行时动态更新配置参数
 17. **全函数性能监控**: 所有subscribe_events函数都支持性能监控，自动收集和报告性能指标
 18. **优雅关闭**: 支持编程式 stop() 方法进行干净的关闭
@@ -45,14 +45,73 @@ git clone https://github.com/0xfnzero/solana-streamer
 
 ```toml
 # 添加到您的 Cargo.toml
-solana-streamer-sdk = { path = "./solana-streamer", version = "0.3.10" }
+solana-streamer-sdk = { path = "./solana-streamer", version = "0.4.1" }
 ```
 
 ### 使用 crates.io
 
 ```toml
 # 添加到您的 Cargo.toml
-solana-streamer-sdk = "0.3.10"
+solana-streamer-sdk = "0.4.1"
+```
+
+## 配置系统
+
+### 预设配置
+
+库提供了三种预设配置，针对不同的使用场景进行了优化：
+
+#### 1. 高吞吐量配置 (`high_throughput()`)
+
+专为高并发场景优化，优先考虑吞吐量而非延迟：
+
+```rust
+let config = StreamClientConfig::high_throughput();
+// 或者使用便捷方法
+let grpc = YellowstoneGrpc::new_high_throughput(endpoint, token)?;
+let shred = ShredStreamGrpc::new_high_throughput(endpoint).await?;
+```
+
+**特性：**
+- **背压策略**: Drop（丢弃策略）- 在高负载时丢弃消息以避免阻塞
+- **缓冲区大小**: 5,000 个许可证，处理突发流量
+- **适用场景**: 需要处理大量数据且可以容忍在峰值负载时偶尔丢失消息的场景
+
+#### 2. 低延迟配置 (`low_latency()`)
+
+专为实时场景优化，优先考虑延迟而非吞吐量：
+
+```rust
+let config = StreamClientConfig::low_latency();
+// 或者使用便捷方法
+let grpc = YellowstoneGrpc::new_low_latency(endpoint, token)?;
+let shred = ShredStreamGrpc::new_low_latency(endpoint).await?;
+```
+
+**特性：**
+- **背压策略**: Block（阻塞策略）- 确保不丢失任何数据
+- **缓冲区大小**: 4000 个许可证，平衡吞吐量和延迟
+- **立即处理**: 不进行缓冲，立即处理事件
+- **适用场景**: 每毫秒都很重要且不能丢失任何事件的场景，如交易应用或实时监控
+
+
+### 自定义配置
+
+您也可以创建自定义配置：
+
+```rust
+let config = StreamClientConfig {
+    connection: ConnectionConfig {
+        connect_timeout: 30,
+        request_timeout: 120,
+        max_decoding_message_size: 20 * 1024 * 1024, // 20MB
+    },
+    backpressure: BackpressureConfig {
+        permits: 2000,
+        strategy: BackpressureStrategy::Block,
+    },
+    enable_metrics: true,
+};
 ```
 
 ## 使用示例
@@ -502,7 +561,7 @@ let event_type_filter = Some(EventTypeFilter {
 
 - **Yellowstone gRPC 客户端**: 针对 Solana 事件流优化
 - **ShredStream 客户端**: 替代流实现
-- **异步处理**: 非阻塞事件处理
+- **高性能处理**: 优化的事件处理机制
 
 ## 项目结构
 

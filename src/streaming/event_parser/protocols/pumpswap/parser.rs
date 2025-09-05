@@ -1,17 +1,16 @@
-use std::collections::HashMap;
+use solana_sdk::pubkey::Pubkey;
 
-use prost_types::Timestamp;
-use solana_sdk::{instruction::CompiledInstruction, pubkey::Pubkey};
-use solana_transaction_status::UiCompiledInstruction;
-
-use crate::streaming::event_parser::{
-    common::{read_u64_le, EventMetadata, EventType, ProtocolType},
-    core::traits::{EventParser, GenericEventParseConfig, GenericEventParser, UnifiedEvent},
-    protocols::pumpswap::{
-        discriminators, pump_swap_buy_event_log_decode, pump_swap_create_pool_event_log_decode,
-        pump_swap_deposit_event_log_decode, pump_swap_sell_event_log_decode,
-        pump_swap_withdraw_event_log_decode, PumpSwapBuyEvent, PumpSwapCreatePoolEvent,
-        PumpSwapDepositEvent, PumpSwapSellEvent, PumpSwapWithdrawEvent,
+use crate::{
+    impl_event_parser_delegate,
+    streaming::event_parser::{
+        common::{read_u64_le, EventMetadata, EventType, ProtocolType},
+        core::traits::{GenericEventParseConfig, GenericEventParser, UnifiedEvent},
+        protocols::pumpswap::{
+            discriminators, pump_swap_buy_event_log_decode, pump_swap_create_pool_event_log_decode,
+            pump_swap_deposit_event_log_decode, pump_swap_sell_event_log_decode,
+            pump_swap_withdraw_event_log_decode, PumpSwapBuyEvent, PumpSwapCreatePoolEvent,
+            PumpSwapDepositEvent, PumpSwapSellEvent, PumpSwapWithdrawEvent,
+        },
     },
 };
 
@@ -92,11 +91,6 @@ impl PumpSwapEventParser {
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
         if let Some(event) = pump_swap_buy_event_log_decode(data) {
-            let mut metadata = metadata;
-            metadata.set_id(format!(
-                "{}-{}-{}-{}",
-                metadata.signature, event.user, event.pool, event.base_amount_out
-            ));
             Some(Box::new(PumpSwapBuyEvent { metadata, ..event }))
         } else {
             None
@@ -109,11 +103,6 @@ impl PumpSwapEventParser {
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
         if let Some(event) = pump_swap_sell_event_log_decode(data) {
-            let mut metadata = metadata;
-            metadata.set_id(format!(
-                "{}-{}-{}-{}",
-                metadata.signature, event.user, event.pool, event.base_amount_in
-            ));
             Some(Box::new(PumpSwapSellEvent { metadata, ..event }))
         } else {
             None
@@ -126,11 +115,6 @@ impl PumpSwapEventParser {
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
         if let Some(event) = pump_swap_create_pool_event_log_decode(data) {
-            let mut metadata = metadata;
-            metadata.set_id(format!(
-                "{}-{}-{}-{}",
-                metadata.signature, event.pool, event.creator, event.base_amount_in
-            ));
             Some(Box::new(PumpSwapCreatePoolEvent { metadata, ..event }))
         } else {
             None
@@ -143,11 +127,6 @@ impl PumpSwapEventParser {
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
         if let Some(event) = pump_swap_deposit_event_log_decode(data) {
-            let mut metadata = metadata;
-            metadata.set_id(format!(
-                "{}-{}-{}-{}",
-                metadata.signature, event.pool, event.user, event.lp_token_amount_out
-            ));
             Some(Box::new(PumpSwapDepositEvent { metadata, ..event }))
         } else {
             None
@@ -160,11 +139,6 @@ impl PumpSwapEventParser {
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
         if let Some(event) = pump_swap_withdraw_event_log_decode(data) {
-            let mut metadata = metadata;
-            metadata.set_id(format!(
-                "{}-{}-{}-{}",
-                metadata.signature, event.pool, event.user, event.lp_token_amount_in
-            ));
             Some(Box::new(PumpSwapWithdrawEvent { metadata, ..event }))
         } else {
             None
@@ -183,12 +157,6 @@ impl PumpSwapEventParser {
 
         let base_amount_out = read_u64_le(data, 0)?;
         let max_quote_amount_in = read_u64_le(data, 8)?;
-
-        let mut metadata = metadata;
-        metadata.set_id(format!(
-            "{}-{}-{}-{}",
-            metadata.signature, accounts[1], accounts[0], base_amount_out
-        ));
 
         Some(Box::new(PumpSwapBuyEvent {
             metadata,
@@ -226,12 +194,6 @@ impl PumpSwapEventParser {
 
         let base_amount_in = read_u64_le(data, 0)?;
         let min_quote_amount_out = read_u64_le(data, 8)?;
-
-        let mut metadata = metadata;
-        metadata.set_id(format!(
-            "{}-{}-{}-{}",
-            metadata.signature, accounts[1], accounts[0], base_amount_in
-        ));
 
         Some(Box::new(PumpSwapSellEvent {
             metadata,
@@ -274,12 +236,6 @@ impl PumpSwapEventParser {
             Pubkey::default()
         };
 
-        let mut metadata = metadata;
-        metadata.set_id(format!(
-            "{}-{}-{}-{}",
-            metadata.signature, accounts[0], accounts[2], base_amount_in
-        ));
-
         Some(Box::new(PumpSwapCreatePoolEvent {
             metadata,
             index,
@@ -314,12 +270,6 @@ impl PumpSwapEventParser {
         let max_base_amount_in = u64::from_le_bytes(data[8..16].try_into().ok()?);
         let max_quote_amount_in = u64::from_le_bytes(data[16..24].try_into().ok()?);
 
-        let mut metadata = metadata;
-        metadata.set_id(format!(
-            "{}-{}-{}-{}",
-            metadata.signature, accounts[0], accounts[2], lp_token_amount_out
-        ));
-
         Some(Box::new(PumpSwapDepositEvent {
             metadata,
             lp_token_amount_out,
@@ -352,12 +302,6 @@ impl PumpSwapEventParser {
         let min_base_amount_out = u64::from_le_bytes(data[8..16].try_into().ok()?);
         let min_quote_amount_out = u64::from_le_bytes(data[16..24].try_into().ok()?);
 
-        let mut metadata = metadata;
-        metadata.set_id(format!(
-            "{}-{}-{}-{}",
-            metadata.signature, accounts[0], accounts[2], lp_token_amount_in
-        ));
-
         Some(Box::new(PumpSwapWithdrawEvent {
             metadata,
             lp_token_amount_in,
@@ -377,59 +321,4 @@ impl PumpSwapEventParser {
     }
 }
 
-#[async_trait::async_trait]
-impl EventParser for PumpSwapEventParser {
-    fn inner_instruction_configs(&self) -> HashMap<&'static str, Vec<GenericEventParseConfig>> {
-        self.inner.inner_instruction_configs()
-    }
-    fn instruction_configs(&self) -> HashMap<Vec<u8>, Vec<GenericEventParseConfig>> {
-        self.inner.instruction_configs()
-    }
-    fn parse_events_from_inner_instruction(
-        &self,
-        inner_instruction: &UiCompiledInstruction,
-        signature: &str,
-        slot: u64,
-        block_time: Option<Timestamp>,
-        program_received_time_ms: i64,
-        index: String,
-    ) -> Vec<Box<dyn UnifiedEvent>> {
-        self.inner.parse_events_from_inner_instruction(
-            inner_instruction,
-            signature,
-            slot,
-            block_time,
-            program_received_time_ms,
-            index,
-        )
-    }
-
-    fn parse_events_from_instruction(
-        &self,
-        instruction: &CompiledInstruction,
-        accounts: &[Pubkey],
-        signature: &str,
-        slot: u64,
-        block_time: Option<Timestamp>,
-        program_received_time_ms: i64,
-        index: String,
-    ) -> Vec<Box<dyn UnifiedEvent>> {
-        self.inner.parse_events_from_instruction(
-            instruction,
-            accounts,
-            signature,
-            slot,
-            block_time,
-            program_received_time_ms,
-            index,
-        )
-    }
-
-    fn should_handle(&self, program_id: &Pubkey) -> bool {
-        self.inner.should_handle(program_id)
-    }
-
-    fn supported_program_ids(&self) -> Vec<Pubkey> {
-        self.inner.supported_program_ids()
-    }
-}
+impl_event_parser_delegate!(PumpSwapEventParser);

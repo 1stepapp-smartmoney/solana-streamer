@@ -1,26 +1,24 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use crossbeam_queue::ArrayQueue;
 use serde::{Deserialize, Serialize};
-use solana_sdk::pubkey::Pubkey;
-use solana_transaction_status::UiInstruction;
-use std::{
-    hash::{DefaultHasher, Hash, Hasher},
-    str::FromStr,
-    sync::Arc,
-};
-use tokio::sync::Mutex;
+use solana_sdk::{pubkey::Pubkey, signature::Signature};
+use std::{borrow::Cow, fmt, str::FromStr, sync::Arc};
 
 use crate::{
     match_event,
-    streaming::event_parser::{
-        protocols::{
-            bonk::BonkTradeEvent,
-            pumpfun::PumpFunTradeEvent,
-            pumpswap::{PumpSwapBuyEvent, PumpSwapSellEvent},
-            raydium_amm_v4::RaydiumAmmV4SwapEvent,
-            raydium_clmm::{RaydiumClmmSwapEvent, RaydiumClmmSwapV2Event},
-            raydium_cpmm::RaydiumCpmmSwapEvent,
+    streaming::{
+        common::SimdUtils,
+        event_parser::{
+            protocols::{
+                bonk::BonkTradeEvent,
+                pumpfun::PumpFunTradeEvent,
+                pumpswap::{PumpSwapBuyEvent, PumpSwapSellEvent},
+                raydium_amm_v4::RaydiumAmmV4SwapEvent,
+                raydium_clmm::{RaydiumClmmSwapEvent, RaydiumClmmSwapV2Event},
+                raydium_cpmm::RaydiumCpmmSwapEvent,
+            },
+            UnifiedEvent,
         },
-        UnifiedEvent,
     },
 };
 
@@ -30,7 +28,7 @@ const TRANSFER_DATA_POOL_SIZE: usize = 2000;
 
 /// Event metadata object pool
 pub struct EventMetadataPool {
-    pool: Arc<Mutex<Vec<EventMetadata>>>,
+    pool: Arc<ArrayQueue<EventMetadata>>,
 }
 
 impl Default for EventMetadataPool {
@@ -41,55 +39,22 @@ impl Default for EventMetadataPool {
 
 impl EventMetadataPool {
     pub fn new() -> Self {
-        Self { pool: Arc::new(Mutex::new(Vec::with_capacity(EVENT_METADATA_POOL_SIZE))) }
+        Self { pool: Arc::new(ArrayQueue::new(EVENT_METADATA_POOL_SIZE)) }
     }
 
-    pub async fn acquire(&self) -> Option<EventMetadata> {
-        let mut pool = self.pool.lock().await;
-        pool.pop()
+    pub fn acquire(&self) -> Option<EventMetadata> {
+        self.pool.pop()
     }
 
-    pub async fn release(&self, metadata: EventMetadata) {
-        let mut pool = self.pool.lock().await;
-        if pool.len() < EVENT_METADATA_POOL_SIZE {
-            pool.push(metadata);
-        }
-    }
-}
-
-/// Transfer data object pool
-pub struct TransferDataPool {
-    pool: Arc<Mutex<Vec<TransferData>>>,
-}
-
-impl Default for TransferDataPool {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl TransferDataPool {
-    pub fn new() -> Self {
-        Self { pool: Arc::new(Mutex::new(Vec::with_capacity(TRANSFER_DATA_POOL_SIZE))) }
-    }
-
-    pub async fn acquire(&self) -> Option<TransferData> {
-        let mut pool = self.pool.lock().await;
-        pool.pop()
-    }
-
-    pub async fn release(&self, transfer_data: TransferData) {
-        let mut pool = self.pool.lock().await;
-        if pool.len() < TRANSFER_DATA_POOL_SIZE {
-            pool.push(transfer_data);
-        }
+    pub fn release(&self, metadata: EventMetadata) {
+        // 如果队列已满，push 会失败，但不会阻塞
+        let _ = self.pool.push(metadata);
     }
 }
 
 // Global object pool instances
 lazy_static::lazy_static! {
     pub static ref EVENT_METADATA_POOL: EventMetadataPool = EventMetadataPool::new();
-    pub static ref TRANSFER_DATA_POOL: TransferDataPool = TransferDataPool::new();
 }
 
 #[derive(
@@ -197,6 +162,8 @@ pub enum EventType {
     AccountRaydiumCpmmAmmConfig,
     AccountRaydiumCpmmPoolState,
 
+    AccountCommon,
+
     // Common events
     BlockMeta,
     Unknown,
@@ -220,78 +187,78 @@ pub const ACCOUNT_EVENT_TYPES: &[EventType] = &[
 ];
 pub const BLOCK_EVENT_TYPES: &[EventType] = &[EventType::BlockMeta];
 
-impl EventType {
-    #[allow(clippy::inherent_to_string)]
-    pub fn to_string(&self) -> String {
+impl fmt::Display for EventType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            EventType::PumpSwapBuy => "PumpSwapBuy".to_string(),
-            EventType::PumpSwapSell => "PumpSwapSell".to_string(),
-            EventType::PumpSwapCreatePool => "PumpSwapCreatePool".to_string(),
-            EventType::PumpSwapDeposit => "PumpSwapDeposit".to_string(),
-            EventType::PumpSwapWithdraw => "PumpSwapWithdraw".to_string(),
-            EventType::PumpFunCreateToken => "PumpFunCreateToken".to_string(),
-            EventType::PumpFunBuy => "PumpFunBuy".to_string(),
-            EventType::PumpFunSell => "PumpFunSell".to_string(),
-            EventType::PumpFunMigrate => "PumpFunMigrate".to_string(),
-            EventType::BonkBuyExactIn => "BonkBuyExactIn".to_string(),
-            EventType::BonkBuyExactOut => "BonkBuyExactOut".to_string(),
-            EventType::BonkSellExactIn => "BonkSellExactIn".to_string(),
-            EventType::BonkSellExactOut => "BonkSellExactOut".to_string(),
-            EventType::BonkInitialize => "BonkInitialize".to_string(),
-            EventType::BonkInitializeV2 => "BonkInitializeV2".to_string(),
-            EventType::BonkMigrateToAmm => "BonkMigrateToAmm".to_string(),
-            EventType::BonkMigrateToCpswap => "BonkMigrateToCpswap".to_string(),
-            EventType::AccountPumpFunBondingCurve => "AccountPumpFunBondingCurve".to_string(),
-            EventType::AccountPumpFunGlobal => "AccountPumpFunGlobal".to_string(),
-            EventType::AccountPumpSwapGlobalConfig => "AccountPumpSwapGlobalConfig".to_string(),
-            EventType::AccountPumpSwapPool => "AccountPumpSwapPool".to_string(),
-            EventType::AccountBonkPoolState => "AccountBonkPoolState".to_string(),
-            EventType::AccountBonkGlobalConfig => "AccountBonkGlobalConfig".to_string(),
-            EventType::AccountBonkPlatformConfig => "AccountBonkPlatformConfig".to_string(),
-            EventType::AccountBonkVestingRecord => "AccountBonkVestingRecord".to_string(),
-            EventType::RaydiumCpmmSwapBaseInput => "RaydiumCpmmSwapBaseInput".to_string(),
-            EventType::RaydiumCpmmSwapBaseOutput => "RaydiumCpmmSwapBaseOutput".to_string(),
-            EventType::RaydiumCpmmDeposit => "RaydiumCpmmDeposit".to_string(),
-            EventType::RaydiumCpmmInitialize => "RaydiumCpmmInitialize".to_string(),
-            EventType::RaydiumCpmmWithdraw => "RaydiumCpmmWithdraw".to_string(),
-            EventType::RaydiumClmmSwap => "RaydiumClmmSwap".to_string(),
-            EventType::RaydiumClmmSwapV2 => "RaydiumClmmSwapV2".to_string(),
-            EventType::RaydiumClmmClosePosition => "RaydiumClmmClosePosition".to_string(),
+            EventType::PumpSwapBuy => write!(f, "PumpSwapBuy"),
+            EventType::PumpSwapSell => write!(f, "PumpSwapSell"),
+            EventType::PumpSwapCreatePool => write!(f, "PumpSwapCreatePool"),
+            EventType::PumpSwapDeposit => write!(f, "PumpSwapDeposit"),
+            EventType::PumpSwapWithdraw => write!(f, "PumpSwapWithdraw"),
+            EventType::PumpFunCreateToken => write!(f, "PumpFunCreateToken"),
+            EventType::PumpFunBuy => write!(f, "PumpFunBuy"),
+            EventType::PumpFunSell => write!(f, "PumpFunSell"),
+            EventType::PumpFunMigrate => write!(f, "PumpFunMigrate"),
+            EventType::BonkBuyExactIn => write!(f, "BonkBuyExactIn"),
+            EventType::BonkBuyExactOut => write!(f, "BonkBuyExactOut"),
+            EventType::BonkSellExactIn => write!(f, "BonkSellExactIn"),
+            EventType::BonkSellExactOut => write!(f, "BonkSellExactOut"),
+            EventType::BonkInitialize => write!(f, "BonkInitialize"),
+            EventType::BonkInitializeV2 => write!(f, "BonkInitializeV2"),
+            EventType::BonkMigrateToAmm => write!(f, "BonkMigrateToAmm"),
+            EventType::BonkMigrateToCpswap => write!(f, "BonkMigrateToCpswap"),
+            EventType::RaydiumCpmmSwapBaseInput => write!(f, "RaydiumCpmmSwapBaseInput"),
+            EventType::RaydiumCpmmSwapBaseOutput => write!(f, "RaydiumCpmmSwapBaseOutput"),
+            EventType::RaydiumCpmmDeposit => write!(f, "RaydiumCpmmDeposit"),
+            EventType::RaydiumCpmmInitialize => write!(f, "RaydiumCpmmInitialize"),
+            EventType::RaydiumCpmmWithdraw => write!(f, "RaydiumCpmmWithdraw"),
+            EventType::RaydiumClmmSwap => write!(f, "RaydiumClmmSwap"),
+            EventType::RaydiumClmmSwapV2 => write!(f, "RaydiumClmmSwapV2"),
+            EventType::RaydiumClmmClosePosition => write!(f, "RaydiumClmmClosePosition"),
             EventType::RaydiumClmmDecreaseLiquidityV2 => {
-                "RaydiumClmmDecreaseLiquidityV2".to_string()
+                write!(f, "RaydiumClmmDecreaseLiquidityV2")
             }
-            EventType::RaydiumClmmCreatePool => "RaydiumClmmCreatePool".to_string(),
+            EventType::RaydiumClmmCreatePool => write!(f, "RaydiumClmmCreatePool"),
             EventType::RaydiumClmmIncreaseLiquidityV2 => {
-                "RaydiumClmmIncreaseLiquidityV2".to_string()
+                write!(f, "RaydiumClmmIncreaseLiquidityV2")
             }
             EventType::RaydiumClmmOpenPositionWithToken22Nft => {
-                "RaydiumClmmOpenPositionWithToken22Nft".to_string()
+                write!(f, "RaydiumClmmOpenPositionWithToken22Nft")
             }
-            EventType::RaydiumClmmOpenPositionV2 => "RaydiumClmmOpenPositionV2".to_string(),
-            EventType::RaydiumAmmV4SwapBaseIn => "RaydiumAmmV4SwapBaseIn".to_string(),
-            EventType::RaydiumAmmV4SwapBaseOut => "RaydiumAmmV4SwapBaseOut".to_string(),
-            EventType::RaydiumAmmV4Deposit => "RaydiumAmmV4Deposit".to_string(),
-            EventType::RaydiumAmmV4Initialize2 => "RaydiumAmmV4Initialize2".to_string(),
-            EventType::RaydiumAmmV4Withdraw => "RaydiumAmmV4Withdraw".to_string(),
-            EventType::RaydiumAmmV4WithdrawPnl => "RaydiumAmmV4WithdrawPnl".to_string(),
-            EventType::AccountRaydiumAmmV4AmmInfo => "AccountRaydiumAmmV4AmmInfo".to_string(),
-            EventType::AccountRaydiumClmmAmmConfig => "AccountRaydiumClmmAmmConfig".to_string(),
-            EventType::AccountRaydiumClmmPoolState => "AccountRaydiumClmmPoolState".to_string(),
+            EventType::RaydiumClmmOpenPositionV2 => write!(f, "RaydiumClmmOpenPositionV2"),
+            EventType::RaydiumAmmV4SwapBaseIn => write!(f, "RaydiumAmmV4SwapBaseIn"),
+            EventType::RaydiumAmmV4SwapBaseOut => write!(f, "RaydiumAmmV4SwapBaseOut"),
+            EventType::RaydiumAmmV4Deposit => write!(f, "RaydiumAmmV4Deposit"),
+            EventType::RaydiumAmmV4Initialize2 => write!(f, "RaydiumAmmV4Initialize2"),
+            EventType::RaydiumAmmV4Withdraw => write!(f, "RaydiumAmmV4Withdraw"),
+            EventType::RaydiumAmmV4WithdrawPnl => write!(f, "RaydiumAmmV4WithdrawPnl"),
+            EventType::AccountRaydiumAmmV4AmmInfo => write!(f, "AccountRaydiumAmmV4AmmInfo"),
+            EventType::AccountPumpSwapGlobalConfig => write!(f, "AccountPumpSwapGlobalConfig"),
+            EventType::AccountPumpSwapPool => write!(f, "AccountPumpSwapPool"),
+            EventType::AccountBonkPoolState => write!(f, "AccountBonkPoolState"),
+            EventType::AccountBonkGlobalConfig => write!(f, "AccountBonkGlobalConfig"),
+            EventType::AccountBonkPlatformConfig => write!(f, "AccountBonkPlatformConfig"),
+            EventType::AccountBonkVestingRecord => write!(f, "AccountBonkVestingRecord"),
+            EventType::AccountPumpFunBondingCurve => write!(f, "AccountPumpFunBondingCurve"),
+            EventType::AccountPumpFunGlobal => write!(f, "AccountPumpFunGlobal"),
+            EventType::AccountRaydiumClmmAmmConfig => write!(f, "AccountRaydiumClmmAmmConfig"),
+            EventType::AccountRaydiumClmmPoolState => write!(f, "AccountRaydiumClmmPoolState"),
             EventType::AccountRaydiumClmmTickArrayState => {
-                "AccountRaydiumClmmTickArrayState".to_string()
+                write!(f, "AccountRaydiumClmmTickArrayState")
             }
-            EventType::AccountRaydiumCpmmAmmConfig => "AccountRaydiumCpmmAmmConfig".to_string(),
-            EventType::AccountRaydiumCpmmPoolState => "AccountRaydiumCpmmPoolState".to_string(),
-            EventType::BlockMeta => "BlockMeta".to_string(),
-            EventType::PhotonPumpFunBuy => "PhotonPumpFunBuy".to_string(),
-            EventType::PhotonPumpFunSell => "PhotonPumpFunSell".to_string(),
-            EventType::PhotonPumpSwapTrade => "PhotonPumpSwapTrade".to_string(),
-            EventType::MeteoraDBCSwap => "MeteoraDBCSwap".to_string(),
-            EventType::MeteoraDBCSwap2 => "MeteoraDBCSwap2".to_string(),
-            EventType::MeteoraDAMMv2Swap => "MeteoraDAMMv2Swap".to_string(),
-            EventType::AxiomPumpFunBuy => "AxiomPumpFunBuy".to_string(),
-            EventType::AxiomPumpSwapBuy => "AxiomPumpSwapBuy".to_string(),
-            EventType::Unknown => "Unknown".to_string(),
+            EventType::AccountRaydiumCpmmAmmConfig => write!(f, "AccountRaydiumCpmmAmmConfig"),
+            EventType::AccountRaydiumCpmmPoolState => write!(f, "AccountRaydiumCpmmPoolState"),
+            EventType::AccountCommon => write!(f, "AccountCommon"),
+            EventType::BlockMeta => write!(f, "BlockMeta"),
+            EventType::PhotonPumpFunBuy => write!(f, "PhotonPumpFunBuy"),
+            EventType::PhotonPumpFunSell => write!(f, "PhotonPumpFunSell"),
+            EventType::PhotonPumpSwapTrade => write!(f, "PhotonPumpSwapTrade"),
+            EventType::MeteoraDBCSwap => write!(f, "MeteoraDBCSwap"),
+            EventType::MeteoraDBCSwap2 => write!(f, "MeteoraDBCSwap2"),
+            EventType::MeteoraDAMMv2Swap => write!(f, "MeteoraDAMMv2Swap"),
+            EventType::AxiomPumpFunBuy => write!(f, "AxiomPumpFunBuy"),
+            EventType::AxiomPumpSwapBuy => write!(f, "AxiomPumpSwapBuy"),
+            EventType::Unknown => write!(f, "Unknown"),
         }
     }
 }
@@ -339,20 +306,6 @@ impl ProtocolInfo {
     }
 }
 
-/// Transfer data
-#[derive(
-    Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize,
-)]
-pub struct TransferData {
-    pub token_program: Pubkey,
-    pub source: Pubkey,
-    pub destination: Pubkey,
-    pub authority: Option<Pubkey>,
-    pub amount: u64,
-    pub decimals: Option<u8>,
-    pub mint: Option<Pubkey>,
-}
-
 #[derive(
     Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize,
 )]
@@ -361,296 +314,407 @@ pub struct SwapData {
     pub to_mint: Pubkey,
     pub from_amount: u64,
     pub to_amount: u64,
-    pub description: Option<String>,
+    pub description: Option<Cow<'static, str>>,
 }
 
 /// Event metadata
-#[derive(
-    Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize,
-)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EventMetadata {
-    pub id: String,
-    pub signature: String,
+    pub signature: Signature,
     pub slot: u64,
+    pub transaction_index: Option<u64>, // 新增：交易在slot中的索引
     pub block_time: i64,
     pub block_time_ms: i64,
-    pub program_received_time_ms: i64,
-    pub program_handle_time_consuming_ms: i64,
+    pub recv_us: i64,
+    pub handle_us: i64,
     pub protocol: ProtocolType,
     pub event_type: EventType,
     pub program_id: Pubkey,
-    pub transfer_datas: Vec<TransferData>,
     pub swap_data: Option<SwapData>,
-    pub index: String,
+    pub outer_index: i64,
+    pub inner_index: Option<i64>,
 }
 
 impl EventMetadata {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        id: String,
-        signature: String,
+        signature: Signature,
         slot: u64,
         block_time: i64,
         block_time_ms: i64,
         protocol: ProtocolType,
         event_type: EventType,
         program_id: Pubkey,
-        index: String,
-        program_received_time_ms: i64,
+        outer_index: i64,
+        inner_index: Option<i64>,
+        recv_us: i64,
+        transaction_index: Option<u64>,
     ) -> Self {
         Self {
-            id,
             signature,
             slot,
             block_time,
             block_time_ms,
-            program_received_time_ms,
-            program_handle_time_consuming_ms: 0,
+            recv_us,
+            handle_us: 0,
             protocol,
             event_type,
             program_id,
-            transfer_datas: Vec::with_capacity(4), // Pre-allocate capacity
             swap_data: None,
-            index,
+            outer_index,
+            inner_index,
+            transaction_index,
         }
     }
 
-    pub fn set_id(&mut self, id: String) {
-        let _id = format!("{}-{}-{}", self.signature, self.event_type.to_string(), id);
-        let mut hasher = DefaultHasher::new();
-        _id.hash(&mut hasher);
-        let hash_value = hasher.finish();
-        self.id = format!("{:x}", hash_value);
-    }
-
-    pub fn set_transfer_datas(
-        &mut self,
-        transfer_datas: Vec<TransferData>,
-        swap_data: Option<SwapData>,
-    ) {
-        self.transfer_datas = transfer_datas;
-        self.swap_data = swap_data;
+    pub fn set_swap_data(&mut self, swap_data: SwapData) {
+        self.swap_data = Some(swap_data);
     }
 
     /// Recycle EventMetadata to object pool
-    pub async fn recycle(self) {
-        EVENT_METADATA_POOL.release(self).await;
+    pub fn recycle(self) {
+        EVENT_METADATA_POOL.release(self);
     }
 }
 
-/// Parse token transfer data from next instructions
-pub fn parse_transfer_datas_from_next_instructions(
-    event: Box<dyn UnifiedEvent>,
-    inner_instruction: &solana_transaction_status::UiInnerInstructions,
-    current_index: i8,
-    accounts: &[Pubkey],
-) -> (Vec<TransferData>, Option<SwapData>) {
-    let mut transfer_datas = vec![];
-    // Get the next two instructions after the current instruction
-    let next_instructions: Vec<&UiInstruction> =
-        inner_instruction.instructions.iter().skip((current_index + 1) as usize).collect();
-
-    let system_programs = vec![
-        // Token Program
+lazy_static::lazy_static! {
+    static ref SOL_MINT: Pubkey = Pubkey::from_str("So11111111111111111111111111111111111111111").unwrap();
+    static ref SYSTEM_PROGRAMS: [Pubkey; 3] = [
         Pubkey::from_str("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA").unwrap(),
-        // Token 2022 Program
         Pubkey::from_str("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb").unwrap(),
-        // System Program
         Pubkey::from_str("11111111111111111111111111111111").unwrap(),
     ];
-    for instruction in next_instructions {
-        if let UiInstruction::Compiled(compiled) = instruction {
-            if !system_programs.contains(&accounts[compiled.program_id_index as usize]) {
-                break;
-            }
-            if let Ok(data) = bs58::decode(compiled.data.clone()).into_vec() {
-                // Token Program: transferChecked
-                // Token 2022 Program: transferChecked
-                if data[0] == 12 {
-                    let account_pubkeys: Vec<Pubkey> =
-                        compiled.accounts.iter().map(|a| accounts[*a as usize]).collect();
-                    if account_pubkeys.len() < 4 {
-                        continue;
-                    }
-                    let (source, mint, destination, authority) = (
-                        account_pubkeys[0],
-                        account_pubkeys[1],
-                        account_pubkeys[2],
-                        account_pubkeys[3],
-                    );
-                    let amount = u64::from_le_bytes(data[1..9].try_into().unwrap());
-                    let decimals = data[9];
-                    let token_program = accounts[compiled.program_id_index as usize];
-                    transfer_datas.push(TransferData {
-                        amount,
-                        decimals: Some(decimals),
-                        mint: Some(mint),
-                        source,
-                        destination,
-                        authority: Some(authority),
-                        token_program,
-                    });
-                }
-                // Token Program: transfer
-                else if data[0] == 3 {
-                    let account_pubkeys: Vec<Pubkey> =
-                        compiled.accounts.iter().map(|a| accounts[*a as usize]).collect();
-                    if account_pubkeys.len() < 3 {
-                        continue;
-                    }
-                    let (source, destination, authority) =
-                        (account_pubkeys[0], account_pubkeys[1], account_pubkeys[2]);
-                    let amount = u64::from_le_bytes(data[1..9].try_into().unwrap());
-                    let token_program = accounts[compiled.program_id_index as usize];
-                    transfer_datas.push(TransferData {
-                        amount,
-                        decimals: None,
-                        mint: None,
-                        source,
-                        destination,
-                        authority: Some(authority),
-                        token_program,
-                    });
-                }
-                //System Program: transfer
-                else if data[0] == 2 {
-                    let account_pubkeys: Vec<Pubkey> =
-                        compiled.accounts.iter().map(|a| accounts[*a as usize]).collect();
-                    if account_pubkeys.len() < 2 {
-                        continue;
-                    }
-                    let (source, destination) = (account_pubkeys[0], account_pubkeys[1]);
-                    if (data.len() < 13) {
-                        continue;
-                    }
-                    let amount = u64::from_le_bytes(data[4..12].try_into().unwrap());
-                    let token_program = accounts[compiled.program_id_index as usize];
-                    transfer_datas.push(TransferData {
-                        amount,
-                        decimals: None,
-                        mint: None,
-                        source,
-                        destination,
-                        authority: None,
-                        token_program,
-                    });
-                }
-            }
-        }
-    }
-    let mut swap_data: SwapData = SwapData {
+}
+
+/// Parse token transfer data from next instructions
+pub fn parse_swap_data_from_next_instructions(
+    event: &dyn UnifiedEvent,
+    inner_instruction: &solana_transaction_status::InnerInstructions,
+    current_index: i8,
+    accounts: &[Pubkey],
+) -> Option<SwapData> {
+    let mut swap_data = SwapData {
         from_mint: Pubkey::default(),
         to_mint: Pubkey::default(),
         from_amount: 0,
         to_amount: 0,
         description: None,
     };
-    let sol_mint = Pubkey::from_str("So11111111111111111111111111111111111111111").unwrap();
-    if transfer_datas.len() > 0 {
-        let mut user: Option<Pubkey> = None;
-        let mut from_mint: Option<Pubkey> = None;
-        let mut to_mint: Option<Pubkey> = None;
-        let mut user_from_token: Option<Pubkey> = None;
-        let mut user_to_token: Option<Pubkey> = None;
-        let mut from_vault: Option<Pubkey> = None;
-        let mut to_vault: Option<Pubkey> = None;
-        match_event!(event, {
-            BonkTradeEvent => |e: BonkTradeEvent| {
-                user = Some(e.payer);
-                from_mint = Some(e.base_token_mint);
-                to_mint = Some(e.quote_token_mint);
-                user_from_token = Some(e.user_base_token);
-                user_to_token = Some(e.user_quote_token);
-                from_vault = Some(e.base_vault);
-                to_vault = Some(e.quote_vault);
-            },
-            PumpFunTradeEvent => |e: PumpFunTradeEvent| {
-                swap_data.from_mint = if e.is_buy {
-                    sol_mint
-                } else {
-                    e.mint
-                };
-                swap_data.to_mint = if e.is_buy {
-                    e.mint
-                } else {
-                    sol_mint
-                };
-            },
-            PumpSwapBuyEvent => |e: PumpSwapBuyEvent| {
-                swap_data.from_mint = e.quote_mint;
-                swap_data.to_mint = e.base_mint;
-            },
-            PumpSwapSellEvent => |e: PumpSwapSellEvent| {
-                swap_data.from_mint = e.base_mint;
-                swap_data.to_mint = e.quote_mint;
-            },
-            RaydiumCpmmSwapEvent => |e: RaydiumCpmmSwapEvent| {
-                user = Some(e.payer);
-                from_mint = Some(e.input_token_mint);
-                to_mint = Some(e.output_token_mint);
-                user_from_token = Some(e.input_token_account);
-                user_to_token = Some(e.output_token_account);
-                from_vault = Some(e.input_vault);
-                to_vault = Some(e.output_vault);
-            },
-            RaydiumClmmSwapEvent => |e: RaydiumClmmSwapEvent| {
-                user = Some(e.payer);
-                swap_data.description = Some("Unable to get from_mint and to_mint from RaydiumClmmSwapEvent".to_string());
-                user_from_token = Some(e.input_token_account);
-                user_to_token = Some(e.output_token_account);
-                from_vault = Some(e.input_vault);
-                to_vault = Some(e.output_vault);
-            },
-            RaydiumClmmSwapV2Event => |e: RaydiumClmmSwapV2Event| {
-                user = Some(e.payer);
-                from_mint = Some(e.input_vault_mint);
-                to_mint = Some(e.output_vault_mint);
-                user_from_token = Some(e.input_token_account);
-                user_to_token = Some(e.output_token_account);
-                from_vault = Some(e.input_vault);
-                to_vault = Some(e.output_vault);
-            },
-            RaydiumAmmV4SwapEvent => |e: RaydiumAmmV4SwapEvent| {
-                user = Some(e.user_source_owner);
-                swap_data.description = Some("Unable to get from_mint and to_mint from RaydiumAmmV4SwapEvent".to_string());
-                user_from_token = Some(e.user_source_token_account);
-                user_to_token = Some(e.user_destination_token_account);
-                from_vault = Some(e.pool_pc_token_account);
-                to_vault = Some(e.pool_coin_token_account);
-            },
-        });
 
-        for transfer_data in transfer_datas.clone() {
-            if transfer_data.source == user_to_token.unwrap_or_default()
-                && transfer_data.destination == to_vault.unwrap_or_default()
-            {
-                swap_data.from_mint = to_mint.unwrap_or_default();
-                swap_data.from_amount = transfer_data.amount;
-            } else if transfer_data.source == from_vault.unwrap_or_default()
-                && transfer_data.destination == user_from_token.unwrap_or_default()
-            {
-                swap_data.to_mint = from_mint.unwrap_or_default();
-                swap_data.to_amount = transfer_data.amount;
-            } else if transfer_data.source == user_from_token.unwrap_or_default()
-                && transfer_data.destination == from_vault.unwrap_or_default()
-            {
-                swap_data.from_mint = from_mint.unwrap_or_default();
-                swap_data.from_amount = transfer_data.amount;
-            } else if transfer_data.source == to_vault.unwrap_or_default()
-                && transfer_data.destination == user_to_token.unwrap_or_default()
-            {
-                swap_data.to_mint = to_mint.unwrap_or_default();
-                swap_data.to_amount = transfer_data.amount;
+    // 先根据 event 取出关键信息
+    let mut user: Option<Pubkey> = None;
+    let mut from_mint: Option<Pubkey> = None;
+    let mut to_mint: Option<Pubkey> = None;
+    let mut user_from_token: Option<Pubkey> = None;
+    let mut user_to_token: Option<Pubkey> = None;
+    let mut from_vault: Option<Pubkey> = None;
+    let mut to_vault: Option<Pubkey> = None;
+
+    match_event!(&*event, {
+        BonkTradeEvent => |e: BonkTradeEvent| {
+            user = Some(e.payer);
+            from_mint = Some(e.base_token_mint);
+            to_mint = Some(e.quote_token_mint);
+            user_from_token = Some(e.user_base_token);
+            user_to_token = Some(e.user_quote_token);
+            from_vault = Some(e.base_vault);
+            to_vault = Some(e.quote_vault);
+        },
+        PumpFunTradeEvent => |e: PumpFunTradeEvent| {
+            swap_data.from_mint = if e.is_buy { *SOL_MINT } else { e.mint };
+            swap_data.to_mint   = if e.is_buy { e.mint } else { *SOL_MINT };
+        },
+        PumpSwapBuyEvent => |e: PumpSwapBuyEvent| {
+            swap_data.from_mint = e.quote_mint;
+            swap_data.to_mint   = e.base_mint;
+        },
+        PumpSwapSellEvent => |e: PumpSwapSellEvent| {
+            swap_data.from_mint = e.base_mint;
+            swap_data.to_mint   = e.quote_mint;
+        },
+        RaydiumCpmmSwapEvent => |e: RaydiumCpmmSwapEvent| {
+            user = Some(e.payer);
+            from_mint = Some(e.input_token_mint);
+            to_mint   = Some(e.output_token_mint);
+            user_from_token = Some(e.input_token_account);
+            user_to_token   = Some(e.output_token_account);
+            from_vault = Some(e.input_vault);
+            to_vault   = Some(e.output_vault);
+        },
+        RaydiumClmmSwapEvent => |e: RaydiumClmmSwapEvent| {
+            user = Some(e.payer);
+            swap_data.description = Some("Unable to get from_mint and to_mint from RaydiumClmmSwapEvent".into());
+            user_from_token = Some(e.input_token_account);
+            user_to_token   = Some(e.output_token_account);
+            from_vault = Some(e.input_vault);
+            to_vault   = Some(e.output_vault);
+        },
+        RaydiumClmmSwapV2Event => |e: RaydiumClmmSwapV2Event| {
+            user = Some(e.payer);
+            from_mint = Some(e.input_vault_mint);
+            to_mint   = Some(e.output_vault_mint);
+            user_from_token = Some(e.input_token_account);
+            user_to_token   = Some(e.output_token_account);
+            from_vault = Some(e.input_vault);
+            to_vault   = Some(e.output_vault);
+        },
+        RaydiumAmmV4SwapEvent => |e: RaydiumAmmV4SwapEvent| {
+            user = Some(e.user_source_owner);
+            swap_data.description = Some("Unable to get from_mint and to_mint from RaydiumAmmV4SwapEvent".into());
+            user_from_token = Some(e.user_source_token_account);
+            user_to_token   = Some(e.user_destination_token_account);
+            from_vault = Some(e.pool_pc_token_account);
+            to_vault   = Some(e.pool_coin_token_account);
+        },
+    });
+
+    let user_to_token = user_to_token.unwrap_or_default();
+    let user_from_token = user_from_token.unwrap_or_default();
+    let to_vault = to_vault.unwrap_or_default();
+    let from_vault = from_vault.unwrap_or_default();
+    let to_mint = to_mint.unwrap_or_default();
+    let from_mint = from_mint.unwrap_or_default();
+
+    // 单次循环完成提取和判断
+    for instruction in inner_instruction.instructions.iter().skip((current_index + 1) as usize) {
+        let compiled = &instruction.instruction;
+        let program_id = accounts[compiled.program_id_index as usize];
+        if !SYSTEM_PROGRAMS.contains(&program_id) {
+            break;
+        }
+        let data = &compiled.data;
+
+        // 使用 SIMD 验证数据格式
+        if !SimdUtils::validate_data_format(data, 8) {
+            continue;
+        }
+
+        let get_pubkey = |i: usize| accounts[compiled.accounts[i] as usize];
+        let (source, destination, amount) = match data[0] {
+            12 if compiled.accounts.len() >= 4 => {
+                let amt = u64::from_le_bytes(data[1..9].try_into().unwrap());
+                (get_pubkey(0), get_pubkey(2), amt)
             }
+            3 if compiled.accounts.len() >= 3 => {
+                let amt = u64::from_le_bytes(data[1..9].try_into().unwrap());
+                (get_pubkey(0), get_pubkey(1), amt)
+            }
+            2 if compiled.accounts.len() >= 2 => {
+                let amt = u64::from_le_bytes(data[4..12].try_into().unwrap());
+                (get_pubkey(0), get_pubkey(1), amt)
+            }
+            _ => continue,
+        };
+
+        match (source, destination) {
+            (s, d) if s == user_to_token && d == to_vault => {
+                swap_data.from_mint = to_mint;
+                swap_data.from_amount = amount;
+            }
+            (s, d) if s == from_vault && d == user_from_token => {
+                swap_data.to_mint = from_mint;
+                swap_data.to_amount = amount;
+            }
+            (s, d) if s == user_from_token && d == from_vault => {
+                swap_data.from_mint = from_mint;
+                swap_data.from_amount = amount;
+            }
+            (s, d) if s == to_vault && d == user_to_token => {
+                swap_data.to_mint = to_mint;
+                swap_data.to_amount = amount;
+            }
+            (s, d) if s == user_from_token && d == to_vault => {
+                swap_data.from_mint = from_mint;
+                swap_data.from_amount = amount;
+            }
+            (s, d) if s == from_vault && d == user_to_token => {
+                swap_data.to_mint = to_mint;
+                swap_data.to_amount = amount;
+            }
+            _ => {}
+        }
+        if swap_data.from_mint != Pubkey::default() && swap_data.to_mint != Pubkey::default() {
+            break;
+        }
+        if swap_data.from_amount != 0 && swap_data.to_amount != 0 {
+            break;
         }
     }
+
     if swap_data.from_mint != Pubkey::default()
         || swap_data.to_mint != Pubkey::default()
         || swap_data.from_amount != 0
         || swap_data.to_amount != 0
     {
-        (transfer_datas, Some(swap_data))
+        Some(swap_data)
     } else {
-        (transfer_datas, None)
+        None
+    }
+}
+
+/// Parse token transfer data from next instructions
+/// TODO: - wait refactor
+pub fn parse_swap_data_from_next_grpc_instructions(
+    event: &dyn UnifiedEvent,
+    inner_instruction: &yellowstone_grpc_proto::prelude::InnerInstructions,
+    current_index: i8,
+    accounts: &[Pubkey],
+) -> Option<SwapData> {
+    let mut swap_data = SwapData {
+        from_mint: Pubkey::default(),
+        to_mint: Pubkey::default(),
+        from_amount: 0,
+        to_amount: 0,
+        description: None,
+    };
+
+    // 先根据 event 取出关键信息
+    let mut user: Option<Pubkey> = None;
+    let mut from_mint: Option<Pubkey> = None;
+    let mut to_mint: Option<Pubkey> = None;
+    let mut user_from_token: Option<Pubkey> = None;
+    let mut user_to_token: Option<Pubkey> = None;
+    let mut from_vault: Option<Pubkey> = None;
+    let mut to_vault: Option<Pubkey> = None;
+
+    match_event!(&*event, {
+        BonkTradeEvent => |e: BonkTradeEvent| {
+            user = Some(e.payer);
+            from_mint = Some(e.base_token_mint);
+            to_mint = Some(e.quote_token_mint);
+            user_from_token = Some(e.user_base_token);
+            user_to_token = Some(e.user_quote_token);
+            from_vault = Some(e.base_vault);
+            to_vault = Some(e.quote_vault);
+        },
+        PumpFunTradeEvent => |e: PumpFunTradeEvent| {
+            swap_data.from_mint = if e.is_buy { *SOL_MINT } else { e.mint };
+            swap_data.to_mint   = if e.is_buy { e.mint } else { *SOL_MINT };
+        },
+        PumpSwapBuyEvent => |e: PumpSwapBuyEvent| {
+            swap_data.from_mint = e.quote_mint;
+            swap_data.to_mint   = e.base_mint;
+        },
+        PumpSwapSellEvent => |e: PumpSwapSellEvent| {
+            swap_data.from_mint = e.base_mint;
+            swap_data.to_mint   = e.quote_mint;
+        },
+        RaydiumCpmmSwapEvent => |e: RaydiumCpmmSwapEvent| {
+            user = Some(e.payer);
+            from_mint = Some(e.input_token_mint);
+            to_mint   = Some(e.output_token_mint);
+            user_from_token = Some(e.input_token_account);
+            user_to_token   = Some(e.output_token_account);
+            from_vault = Some(e.input_vault);
+            to_vault   = Some(e.output_vault);
+        },
+        RaydiumClmmSwapEvent => |e: RaydiumClmmSwapEvent| {
+            user = Some(e.payer);
+            swap_data.description = Some("Unable to get from_mint and to_mint from RaydiumClmmSwapEvent".into());
+            user_from_token = Some(e.input_token_account);
+            user_to_token   = Some(e.output_token_account);
+            from_vault = Some(e.input_vault);
+            to_vault   = Some(e.output_vault);
+        },
+        RaydiumClmmSwapV2Event => |e: RaydiumClmmSwapV2Event| {
+            user = Some(e.payer);
+            from_mint = Some(e.input_vault_mint);
+            to_mint   = Some(e.output_vault_mint);
+            user_from_token = Some(e.input_token_account);
+            user_to_token   = Some(e.output_token_account);
+            from_vault = Some(e.input_vault);
+            to_vault   = Some(e.output_vault);
+        },
+        RaydiumAmmV4SwapEvent => |e: RaydiumAmmV4SwapEvent| {
+            user = Some(e.user_source_owner);
+            swap_data.description = Some("Unable to get from_mint and to_mint from RaydiumAmmV4SwapEvent".into());
+            user_from_token = Some(e.user_source_token_account);
+            user_to_token   = Some(e.user_destination_token_account);
+            from_vault = Some(e.pool_pc_token_account);
+            to_vault   = Some(e.pool_coin_token_account);
+        },
+    });
+
+    let user_to_token = user_to_token.unwrap_or_default();
+    let user_from_token = user_from_token.unwrap_or_default();
+    let to_vault = to_vault.unwrap_or_default();
+    let from_vault = from_vault.unwrap_or_default();
+    let to_mint = to_mint.unwrap_or_default();
+    let from_mint = from_mint.unwrap_or_default();
+
+    // 单次循环完成提取和判断
+    for instruction in inner_instruction.instructions.iter().skip((current_index + 1) as usize) {
+        let compiled = &instruction;
+        let program_id = accounts[compiled.program_id_index as usize];
+        if !SYSTEM_PROGRAMS.contains(&program_id) {
+            break;
+        }
+        let data = &compiled.data;
+
+        // 使用 SIMD 验证数据格式
+        if !SimdUtils::validate_data_format(data, 8) {
+            continue;
+        }
+
+        let get_pubkey = |i: usize| accounts[compiled.accounts[i] as usize];
+        let (source, destination, amount) = match data[0] {
+            12 if compiled.accounts.len() >= 4 => {
+                let amt = u64::from_le_bytes(data[1..9].try_into().unwrap());
+                (get_pubkey(0), get_pubkey(2), amt)
+            }
+            3 if compiled.accounts.len() >= 3 => {
+                let amt = u64::from_le_bytes(data[1..9].try_into().unwrap());
+                (get_pubkey(0), get_pubkey(1), amt)
+            }
+            2 if compiled.accounts.len() >= 2 => {
+                let amt = u64::from_le_bytes(data[4..12].try_into().unwrap());
+                (get_pubkey(0), get_pubkey(1), amt)
+            }
+            _ => continue,
+        };
+
+        match (source, destination) {
+            (s, d) if s == user_to_token && d == to_vault => {
+                swap_data.from_mint = to_mint;
+                swap_data.from_amount = amount;
+            }
+            (s, d) if s == from_vault && d == user_from_token => {
+                swap_data.to_mint = from_mint;
+                swap_data.to_amount = amount;
+            }
+            (s, d) if s == user_from_token && d == from_vault => {
+                swap_data.from_mint = from_mint;
+                swap_data.from_amount = amount;
+            }
+            (s, d) if s == to_vault && d == user_to_token => {
+                swap_data.to_mint = to_mint;
+                swap_data.to_amount = amount;
+            }
+            (s, d) if s == user_from_token && d == to_vault => {
+                swap_data.from_mint = from_mint;
+                swap_data.from_amount = amount;
+            }
+            (s, d) if s == from_vault && d == user_to_token => {
+                swap_data.to_mint = to_mint;
+                swap_data.to_amount = amount;
+            }
+            _ => {}
+        }
+        if swap_data.from_mint != Pubkey::default() && swap_data.to_mint != Pubkey::default() {
+            break;
+        }
+        if swap_data.from_amount != 0 && swap_data.to_amount != 0 {
+            break;
+        }
+    }
+
+    if swap_data.from_mint != Pubkey::default()
+        || swap_data.to_mint != Pubkey::default()
+        || swap_data.from_amount != 0
+        || swap_data.to_amount != 0
+    {
+        Some(swap_data)
+    } else {
+        None
     }
 }

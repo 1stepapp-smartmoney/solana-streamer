@@ -3,6 +3,7 @@ use prost_types::Timestamp;
 use solana_sdk::{instruction::CompiledInstruction, pubkey::Pubkey};
 use solana_transaction_status::UiCompiledInstruction;
 use spl_associated_token_account::get_associated_token_address;
+use crate::impl_event_parser_delegate;
 use crate::streaming::event_parser::{
     common::{EventMetadata, EventType, ProtocolType},
     core::traits::{EventParser, GenericEventParseConfig, GenericEventParser, UnifiedEvent},
@@ -37,7 +38,7 @@ impl PhotonEventParser {
             GenericEventParseConfig {
                 program_id: PHOTON_PROGRAM_ID,
                 protocol_type: ProtocolType::PhotonProtocol,
-                inner_instruction_discriminator: "",
+                inner_instruction_discriminator: &[],
                 instruction_discriminator: discriminators::PHOTON_PUMPFUN_BUY_IX,
                 event_type: EventType::PhotonPumpFunBuy,
                 inner_instruction_parser: None,
@@ -46,7 +47,7 @@ impl PhotonEventParser {
             GenericEventParseConfig {
                 program_id: PHOTON_PROGRAM_ID,
                 protocol_type: ProtocolType::PhotonProtocol,
-                inner_instruction_discriminator: "",
+                inner_instruction_discriminator: &[],
                 instruction_discriminator: discriminators::PHOTON_PUMPFUN_SELL_IX,
                 event_type: EventType::PhotonPumpFunSell,
                 inner_instruction_parser: None,
@@ -55,7 +56,7 @@ impl PhotonEventParser {
             GenericEventParseConfig {
                 program_id: PHOTON_PROGRAM_ID,
                 protocol_type: ProtocolType::PhotonProtocol,
-                inner_instruction_discriminator: "",
+                inner_instruction_discriminator: &[],
                 instruction_discriminator: discriminators::PHOTON_PUMPSWAP_TRADE_IX,
                 event_type: EventType::PhotonPumpSwapTrade,
                 inner_instruction_parser: None,
@@ -87,14 +88,7 @@ impl PhotonEventParser {
 
         let amount = u64::from_le_bytes(data[16..24].try_into().unwrap());
         let max_sol_cost = u64::from_le_bytes(data[8..16].try_into().unwrap());
-        let mut metadata = metadata;
-        metadata.set_id(format!(
-            "{}-{}-{}-{}",
-            metadata.signature,
-            accounts[2],
-            accounts[6],
-            true
-        ));
+
         Some(Box::new(PhotonPumpFunTradeEvent {
             metadata,
             fee_recipient: accounts[1],
@@ -124,14 +118,7 @@ impl PhotonEventParser {
         }
         let amount = u64::from_le_bytes(data[8..16].try_into().unwrap());
         let min_sol_output = u64::from_le_bytes(data[16..24].try_into().unwrap());
-        let mut metadata = metadata;
-        metadata.set_id(format!(
-            "{}-{}-{}-{}",
-            metadata.signature,
-            accounts[2],
-            accounts[6],
-            false
-        ));
+
         Some(Box::new(PumpFunTradeEvent {
             metadata,
             fee_recipient: accounts[1],
@@ -181,14 +168,7 @@ impl PhotonEventParser {
         if (is_buy) {
             let base_amount_out = read_u64_le(data, 8)?;
             let max_quote_amount_in = read_u64_le(data, 0)?;
-            let mut metadata = metadata;
-            metadata.set_id(format!(
-                "{}-{}-{}-{}",
-                metadata.signature,
-                accounts[2],
-                accounts[6],
-                true
-            ));
+
             let buyevt = PhotonPumpSwapTradeEvent {
                 metadata,
                 base_amount_out,
@@ -213,12 +193,6 @@ impl PhotonEventParser {
         } else {
             let base_amount_in = read_u64_le(data, 0)?;
             let min_quote_amount_out = read_u64_le(data, 8)?;
-
-            let mut metadata = metadata;
-            metadata.set_id(format!(
-                "{}-{}-{}-{}",
-                metadata.signature, accounts[1], accounts[0], base_amount_in
-            ));
 
             let sellevt = PhotonPumpSwapTradeEvent {
                 metadata,
@@ -246,61 +220,4 @@ impl PhotonEventParser {
 
 }
 
-#[async_trait::async_trait]
-impl EventParser for PhotonEventParser {
-
-    fn inner_instruction_configs(&self) -> HashMap<&'static str, Vec<GenericEventParseConfig>> {
-        self.inner.inner_instruction_configs()
-    }
-    fn instruction_configs(&self) -> HashMap<Vec<u8>, Vec<GenericEventParseConfig>> {
-        self.inner.instruction_configs()
-    }
-    
-    fn parse_events_from_inner_instruction(
-        &self,
-        inner_instruction: &UiCompiledInstruction,
-        signature: &str,
-        slot: u64,
-        block_time: Option<Timestamp>,
-        program_received_time_ms: i64,
-        index: String,
-    ) -> Vec<Box<dyn UnifiedEvent>> {
-        self.inner.parse_events_from_inner_instruction(
-            inner_instruction,
-            signature,
-            slot,
-            block_time,
-            program_received_time_ms,
-            index,
-        )
-    }
-
-    fn parse_events_from_instruction(
-        &self,
-        instruction: &CompiledInstruction,
-        accounts: &[Pubkey],
-        signature: &str,
-        slot: u64,
-        block_time: Option<Timestamp>,
-        program_received_time_ms: i64,
-        index: String,
-    ) -> Vec<Box<dyn UnifiedEvent>> {
-        self.inner.parse_events_from_instruction(
-            instruction,
-            accounts,
-            signature,
-            slot,
-            block_time,
-            program_received_time_ms,
-            index,
-        )
-    }
-
-    fn should_handle(&self, program_id: &Pubkey) -> bool {
-        self.inner.should_handle(program_id)
-    }
-
-    fn supported_program_ids(&self) -> Vec<Pubkey> {
-        self.inner.supported_program_ids()
-    }
-}
+impl_event_parser_delegate!(PhotonEventParser);

@@ -4,6 +4,7 @@ use prost_types::Timestamp;
 use solana_sdk::{instruction::CompiledInstruction, pubkey::Pubkey};
 use solana_transaction_status::UiCompiledInstruction;
 use spl_associated_token_account::get_associated_token_address;
+use crate::impl_event_parser_delegate;
 use crate::streaming::event_parser::{
     common::{read_u128_le, read_u64_le, read_u8_le, EventMetadata, EventType, ProtocolType},
     core::traits::{EventParser, GenericEventParseConfig, GenericEventParser, UnifiedEvent},
@@ -64,14 +65,7 @@ impl MeteoraDBCEventParser {
         _metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
         if let Ok(event) = borsh::from_slice::<MeteoraDBCSwapEvent>(_data) {
-            let mut metadata = _metadata;
-            metadata.set_id(format!(
-                "{}-{}-{}-{}",
-                metadata.signature,
-                event.pool,
-                event.config,
-                event.trade_direction == TradeDirection::Buy
-            ));
+            let metadata = _metadata;
             Some(Box::new(MeteoraDBCSwapEvent {
                 metadata,
                 ..event
@@ -93,8 +87,6 @@ impl MeteoraDBCEventParser {
         let amount_in = read_u64_le(data, 0)?;
         let minimum_amount_out = read_u64_le(data, 8)?;
 
-        let mut metadata = metadata;
-
         let payer = accounts[9];
         let base_mint = accounts[7];
         let quote_mint = accounts[8];
@@ -110,12 +102,6 @@ impl MeteoraDBCEventParser {
         } else {
             TradeDirection::Sell
         };
-
-        metadata.set_id(format!(
-            "{}-{}-{}-{}",
-            metadata.signature, accounts[2], accounts[1], tradedir == TradeDirection::Buy
-        ));
-
 
         Some(Box::new(MeteoraDBCSwapEvent {
             metadata,
@@ -140,61 +126,4 @@ impl MeteoraDBCEventParser {
     }
 }
 
-#[async_trait::async_trait]
-impl EventParser for MeteoraDBCEventParser {
-
-    fn inner_instruction_configs(&self) -> HashMap<&'static str, Vec<GenericEventParseConfig>> {
-        self.inner.inner_instruction_configs()
-    }
-    fn instruction_configs(&self) -> HashMap<Vec<u8>, Vec<GenericEventParseConfig>> {
-        self.inner.instruction_configs()
-    }
-    
-    fn parse_events_from_inner_instruction(
-        &self,
-        inner_instruction: &UiCompiledInstruction,
-        signature: &str,
-        slot: u64,
-        block_time: Option<Timestamp>,
-        program_received_time_ms: i64,
-        index: String,
-    ) -> Vec<Box<dyn UnifiedEvent>> {
-        self.inner.parse_events_from_inner_instruction(
-            inner_instruction,
-            signature,
-            slot,
-            block_time,
-            program_received_time_ms,
-            index,
-        )
-    }
-
-    fn parse_events_from_instruction(
-        &self,
-        instruction: &CompiledInstruction,
-        accounts: &[Pubkey],
-        signature: &str,
-        slot: u64,
-        block_time: Option<Timestamp>,
-        program_received_time_ms: i64,
-        index: String,
-    ) -> Vec<Box<dyn UnifiedEvent>> {
-        self.inner.parse_events_from_instruction(
-            instruction,
-            accounts,
-            signature,
-            slot,
-            block_time,
-            program_received_time_ms,
-            index,
-        )
-    }
-
-    fn should_handle(&self, program_id: &Pubkey) -> bool {
-        self.inner.should_handle(program_id)
-    }
-
-    fn supported_program_ids(&self) -> Vec<Pubkey> {
-        self.inner.supported_program_ids()
-    }
-}
+impl_event_parser_delegate!(MeteoraDBCEventParser);

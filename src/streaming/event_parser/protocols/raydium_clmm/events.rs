@@ -223,10 +223,10 @@ impl_unified_event!(RaydiumClmmOpenPositionV2Event,);
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RaydiumClmmAmmConfigAccountEvent {
     pub metadata: EventMetadata,
-    pub pubkey: String,
+    pub pubkey: Pubkey,
     pub executable: bool,
     pub lamports: u64,
-    pub owner: String,
+    pub owner: Pubkey,
     pub rent_epoch: u64,
     pub amm_config: AmmConfig,
 }
@@ -236,10 +236,10 @@ impl_unified_event!(RaydiumClmmAmmConfigAccountEvent,);
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RaydiumClmmPoolStateAccountEvent {
     pub metadata: EventMetadata,
-    pub pubkey: String,
+    pub pubkey: Pubkey,
     pub executable: bool,
     pub lamports: u64,
-    pub owner: String,
+    pub owner: Pubkey,
     pub rent_epoch: u64,
     pub pool_state: PoolState,
 }
@@ -249,10 +249,10 @@ impl_unified_event!(RaydiumClmmPoolStateAccountEvent,);
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RaydiumClmmTickArrayStateAccountEvent {
     pub metadata: EventMetadata,
-    pub pubkey: String,
+    pub pubkey: Pubkey,
     pub executable: bool,
     pub lamports: u64,
-    pub owner: String,
+    pub owner: Pubkey,
     pub rent_epoch: u64,
     pub tick_array_state: TickArrayState,
 }

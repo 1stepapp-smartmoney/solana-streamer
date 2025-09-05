@@ -47,10 +47,10 @@ pub fn amm_config_parser(
     if let Some(amm_config) = amm_config_decode(&account.data[8..AMM_CONFIG_SIZE + 8]) {
         Some(Box::new(RaydiumClmmAmmConfigAccountEvent {
             metadata,
-            pubkey: account.pubkey.to_string(),
+            pubkey: account.pubkey,
             executable: account.executable,
             lamports: account.lamports,
-            owner: account.owner.to_string(),
+            owner: account.owner,
             rent_epoch: account.rent_epoch,
             amm_config: amm_config,
         }))
@@ -135,10 +135,10 @@ pub fn pool_state_parser(
     if let Some(pool_state) = pool_state_decode(&account.data[8..POOL_STATE_SIZE + 8]) {
         Some(Box::new(RaydiumClmmPoolStateAccountEvent {
             metadata,
-            pubkey: account.pubkey.to_string(),
+            pubkey: account.pubkey,
             executable: account.executable,
             lamports: account.lamports,
-            owner: account.owner.to_string(),
+            owner: account.owner,
             rent_epoch: account.rent_epoch,
             pool_state: pool_state,
         }))
@@ -218,10 +218,10 @@ pub fn tick_array_state_parser(
     {
         Some(Box::new(RaydiumClmmTickArrayStateAccountEvent {
             metadata,
-            pubkey: account.pubkey.to_string(),
+            pubkey: account.pubkey,
             executable: account.executable,
             lamports: account.lamports,
-            owner: account.owner.to_string(),
+            owner: account.owner,
             rent_epoch: account.rent_epoch,
             tick_array_state: tick_array_state,
         }))

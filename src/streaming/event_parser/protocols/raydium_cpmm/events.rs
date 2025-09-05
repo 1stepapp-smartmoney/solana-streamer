@@ -10,6 +10,7 @@ use solana_sdk::pubkey::Pubkey;
 /// 交易
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
 pub struct RaydiumCpmmSwapEvent {
+    #[borsh(skip)]
     pub metadata: EventMetadata,
     pub amount_in: u64,
     pub minimum_amount_out: u64,
@@ -35,6 +36,7 @@ impl_unified_event!(RaydiumCpmmSwapEvent,);
 /// 存款
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
 pub struct RaydiumCpmmDepositEvent {
+    #[borsh(skip)]
     pub metadata: EventMetadata,
     pub lp_token_amount: u64,
     pub maximum_token0_amount: u64,
@@ -59,6 +61,7 @@ impl_unified_event!(RaydiumCpmmDepositEvent,);
 /// 初始化
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
 pub struct RaydiumCpmmInitializeEvent {
+    #[borsh(skip)]
     pub metadata: EventMetadata,
     pub init_amount0: u64,
     pub init_amount1: u64,
@@ -90,6 +93,7 @@ impl_unified_event!(RaydiumCpmmInitializeEvent,);
 /// 提款
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
 pub struct RaydiumCpmmWithdrawEvent {
+    #[borsh(skip)]
     pub metadata: EventMetadata,
     pub lp_token_amount: u64,
     pub minimum_token0_amount: u64,
@@ -115,11 +119,12 @@ impl_unified_event!(RaydiumCpmmWithdrawEvent,);
 /// 池配置
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
 pub struct RaydiumCpmmAmmConfigAccountEvent {
+    #[borsh(skip)]
     pub metadata: EventMetadata,
-    pub pubkey: String,
+    pub pubkey: Pubkey,
     pub executable: bool,
     pub lamports: u64,
-    pub owner: String,
+    pub owner: Pubkey,
     pub rent_epoch: u64,
     pub amm_config: AmmConfig,
 }
@@ -128,11 +133,12 @@ impl_unified_event!(RaydiumCpmmAmmConfigAccountEvent,);
 /// 池状态
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
 pub struct RaydiumCpmmPoolStateAccountEvent {
+    #[borsh(skip)]
     pub metadata: EventMetadata,
-    pub pubkey: String,
+    pub pubkey: Pubkey,
     pub executable: bool,
     pub lamports: u64,
-    pub owner: String,
+    pub owner: Pubkey,
     pub rent_epoch: u64,
     pub pool_state: PoolState,
 }

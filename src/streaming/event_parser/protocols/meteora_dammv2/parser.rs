@@ -4,6 +4,7 @@ use prost_types::Timestamp;
 use solana_sdk::{instruction::CompiledInstruction, pubkey::Pubkey};
 use solana_transaction_status::UiCompiledInstruction;
 use spl_associated_token_account::get_associated_token_address;
+use crate::impl_event_parser_delegate;
 use crate::streaming::event_parser::{
     common::{read_u128_le, read_u64_le, read_u8_le, EventMetadata, EventType, ProtocolType},
     core::traits::{EventParser, GenericEventParseConfig, GenericEventParser, UnifiedEvent},
@@ -54,13 +55,7 @@ impl MeteoraDAMMv2EventParser {
     ) -> Option<Box<dyn UnifiedEvent>> {
         if let Ok(event) = borsh::from_slice::<MeteoraDAMMv2SwapEvent>(_data) {
             let mut metadata = _metadata;
-            metadata.set_id(format!(
-                "{}-{}-{}-{}",
-                metadata.signature,
-                event.pool,
-                event.param_amount_in,
-                event.trade_direction == TradeDirection::Buy
-            ));
+
             Some(Box::new(MeteoraDAMMv2SwapEvent {
                 metadata,
                 ..event
@@ -100,10 +95,6 @@ impl MeteoraDAMMv2EventParser {
             TradeDirection::Sell
         };
 
-        metadata.set_id(format!(
-            "{}-{}-{}-{}",
-            metadata.signature, accounts[1], amount_in, tradedir == TradeDirection::Buy
-        ));
 
 
         Some(Box::new(MeteoraDAMMv2SwapEvent {
@@ -128,61 +119,4 @@ impl MeteoraDAMMv2EventParser {
     }
 }
 
-#[async_trait::async_trait]
-impl EventParser for MeteoraDAMMv2EventParser {
-
-    fn inner_instruction_configs(&self) -> HashMap<&'static str, Vec<GenericEventParseConfig>> {
-        self.inner.inner_instruction_configs()
-    }
-    fn instruction_configs(&self) -> HashMap<Vec<u8>, Vec<GenericEventParseConfig>> {
-        self.inner.instruction_configs()
-    }
-
-    fn parse_events_from_inner_instruction(
-        &self,
-        inner_instruction: &UiCompiledInstruction,
-        signature: &str,
-        slot: u64,
-        block_time: Option<Timestamp>,
-        program_received_time_ms: i64,
-        index: String,
-    ) -> Vec<Box<dyn UnifiedEvent>> {
-        self.inner.parse_events_from_inner_instruction(
-            inner_instruction,
-            signature,
-            slot,
-            block_time,
-            program_received_time_ms,
-            index,
-        )
-    }
-
-    fn parse_events_from_instruction(
-        &self,
-        instruction: &CompiledInstruction,
-        accounts: &[Pubkey],
-        signature: &str,
-        slot: u64,
-        block_time: Option<Timestamp>,
-        program_received_time_ms: i64,
-        index: String,
-    ) -> Vec<Box<dyn UnifiedEvent>> {
-        self.inner.parse_events_from_instruction(
-            instruction,
-            accounts,
-            signature,
-            slot,
-            block_time,
-            program_received_time_ms,
-            index,
-        )
-    }
-
-    fn should_handle(&self, program_id: &Pubkey) -> bool {
-        self.inner.should_handle(program_id)
-    }
-
-    fn supported_program_ids(&self) -> Vec<Pubkey> {
-        self.inner.supported_program_ids()
-    }
-}
+impl_event_parser_delegate!(MeteoraDAMMv2EventParser);

@@ -374,11 +374,12 @@ impl_unified_event!(
 /// 全局配置
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
 pub struct PumpSwapGlobalConfigAccountEvent {
+    #[borsh(skip)]
     pub metadata: EventMetadata,
-    pub pubkey: String,
+    pub pubkey: Pubkey,
     pub executable: bool,
     pub lamports: u64,
-    pub owner: String,
+    pub owner: Pubkey,
     pub rent_epoch: u64,
     pub global_config: GlobalConfig,
 }
@@ -387,11 +388,12 @@ impl_unified_event!(PumpSwapGlobalConfigAccountEvent,);
 /// 池
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
 pub struct PumpSwapPoolAccountEvent {
+    #[borsh(skip)]
     pub metadata: EventMetadata,
-    pub pubkey: String,
+    pub pubkey: Pubkey,
     pub executable: bool,
     pub lamports: u64,
-    pub owner: String,
+    pub owner: Pubkey,
     pub rent_epoch: u64,
     pub pool: Pool,
 }
@@ -400,11 +402,21 @@ impl_unified_event!(PumpSwapPoolAccountEvent,);
 /// 事件鉴别器常量
 pub mod discriminators {
     // 事件鉴别器
-    pub const BUY_EVENT: &str = "0xe445a52e51cb9a1d67f4521f2cf57777";
-    pub const SELL_EVENT: &str = "0xe445a52e51cb9a1d3e2f370aa503dc2a";
-    pub const CREATE_POOL_EVENT: &str = "0xe445a52e51cb9a1db1310cd2a076a774";
-    pub const DEPOSIT_EVENT: &str = "0xe445a52e51cb9a1d78f83d531f8e6b90";
-    pub const WITHDRAW_EVENT: &str = "0xe445a52e51cb9a1d1609851aa02c47c0";
+    // pub const BUY_EVENT: &str = "0xe445a52e51cb9a1d67f4521f2cf57777";
+    pub const BUY_EVENT: &[u8] =
+        &[228, 69, 165, 46, 81, 203, 154, 29, 103, 244, 82, 31, 44, 245, 119, 119];
+    // pub const SELL_EVENT: &str = "0xe445a52e51cb9a1d3e2f370aa503dc2a";
+    pub const SELL_EVENT: &[u8] =
+        &[228, 69, 165, 46, 81, 203, 154, 29, 62, 47, 55, 10, 165, 3, 220, 42];
+    // pub const CREATE_POOL_EVENT: &str = "0xe445a52e51cb9a1db1310cd2a076a774";
+    pub const CREATE_POOL_EVENT: &[u8] =
+        &[228, 69, 165, 46, 81, 203, 154, 29, 177, 49, 12, 210, 160, 118, 167, 116];
+    // pub const DEPOSIT_EVENT: &str = "0xe445a52e51cb9a1d78f83d531f8e6b90";
+    pub const DEPOSIT_EVENT: &[u8] =
+        &[228, 69, 165, 46, 81, 203, 154, 29, 120, 248, 61, 83, 31, 142, 107, 144];
+    // pub const WITHDRAW_EVENT: &str = "0xe445a52e51cb9a1d1609851aa02c47c0";
+    pub const WITHDRAW_EVENT: &[u8] =
+        &[228, 69, 165, 46, 81, 203, 154, 29, 22, 9, 133, 26, 160, 44, 71, 192];
 
     // 指令鉴别器
     pub const BUY_IX: &[u8] = &[102, 6, 61, 18, 1, 218, 235, 234];

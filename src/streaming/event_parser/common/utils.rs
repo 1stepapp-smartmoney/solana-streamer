@@ -1,20 +1,8 @@
-use base64::engine::general_purpose;
-use base64::Engine;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// 获取当前时间戳
 pub fn current_timestamp() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards").as_secs() as i64
-}
-
-/// 从base64字符串解码数据
-pub fn decode_base64(data: &str) -> Result<Vec<u8>, base64::DecodeError> {
-    general_purpose::STANDARD.decode(data)
-}
-
-/// 将数据编码为base64字符串
-pub fn encode_base64(data: &[u8]) -> String {
-    general_purpose::STANDARD.encode(data)
 }
 
 /// 从字节数组中提取鉴别器和剩余数据
@@ -23,15 +11,6 @@ pub fn extract_discriminator(length: usize, data: &[u8]) -> Option<(&[u8], &[u8]
         return None;
     }
     Some((&data[..length], &data[length..]))
-}
-
-/// 检查鉴别器是否匹配 - 优化版本
-pub fn discriminator_matches(data: &str, expected: &str) -> bool {
-    if data.len() < expected.len() {
-        return false;
-    }
-    // 使用字节比较而不是字符串比较，更高效
-    data.as_bytes().starts_with(expected.as_bytes())
 }
 
 /// 从日志中提取程序数据

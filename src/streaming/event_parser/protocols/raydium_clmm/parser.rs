@@ -1,20 +1,19 @@
-use std::collections::HashMap;
+use solana_sdk::pubkey::Pubkey;
 
-use prost_types::Timestamp;
-use solana_sdk::{instruction::CompiledInstruction, pubkey::Pubkey};
-use solana_transaction_status::UiCompiledInstruction;
-
-use crate::streaming::event_parser::{
-    common::{
-        read_i32_le, read_option_bool, read_u128_le, read_u64_le, read_u8_le, EventMetadata,
-        EventType, ProtocolType,
-    },
-    core::traits::{EventParser, GenericEventParseConfig, GenericEventParser, UnifiedEvent},
-    protocols::raydium_clmm::{
-        discriminators, RaydiumClmmClosePositionEvent, RaydiumClmmCreatePoolEvent,
-        RaydiumClmmDecreaseLiquidityV2Event, RaydiumClmmIncreaseLiquidityV2Event,
-        RaydiumClmmOpenPositionV2Event, RaydiumClmmOpenPositionWithToken22NftEvent,
-        RaydiumClmmSwapEvent, RaydiumClmmSwapV2Event,
+use crate::{
+    impl_event_parser_delegate,
+    streaming::event_parser::{
+        common::{
+            read_i32_le, read_option_bool, read_u128_le, read_u64_le, read_u8_le, EventMetadata,
+            EventType, ProtocolType,
+        },
+        core::traits::{GenericEventParseConfig, GenericEventParser, UnifiedEvent},
+        protocols::raydium_clmm::{
+            discriminators, RaydiumClmmClosePositionEvent, RaydiumClmmCreatePoolEvent,
+            RaydiumClmmDecreaseLiquidityV2Event, RaydiumClmmIncreaseLiquidityV2Event,
+            RaydiumClmmOpenPositionV2Event, RaydiumClmmOpenPositionWithToken22NftEvent,
+            RaydiumClmmSwapEvent, RaydiumClmmSwapV2Event,
+        },
     },
 };
 
@@ -40,7 +39,7 @@ impl RaydiumClmmEventParser {
             GenericEventParseConfig {
                 program_id: RAYDIUM_CLMM_PROGRAM_ID,
                 protocol_type: ProtocolType::RaydiumClmm,
-                inner_instruction_discriminator: "",
+                inner_instruction_discriminator: &[],
                 instruction_discriminator: discriminators::SWAP,
                 event_type: EventType::RaydiumClmmSwap,
                 inner_instruction_parser: None,
@@ -49,7 +48,7 @@ impl RaydiumClmmEventParser {
             GenericEventParseConfig {
                 program_id: RAYDIUM_CLMM_PROGRAM_ID,
                 protocol_type: ProtocolType::RaydiumClmm,
-                inner_instruction_discriminator: "",
+                inner_instruction_discriminator: &[],
                 instruction_discriminator: discriminators::SWAP_V2,
                 event_type: EventType::RaydiumClmmSwapV2,
                 inner_instruction_parser: None,
@@ -58,7 +57,7 @@ impl RaydiumClmmEventParser {
             GenericEventParseConfig {
                 program_id: RAYDIUM_CLMM_PROGRAM_ID,
                 protocol_type: ProtocolType::RaydiumClmm,
-                inner_instruction_discriminator: "",
+                inner_instruction_discriminator: &[],
                 instruction_discriminator: discriminators::CLOSE_POSITION,
                 event_type: EventType::RaydiumClmmClosePosition,
                 inner_instruction_parser: None,
@@ -67,7 +66,7 @@ impl RaydiumClmmEventParser {
             GenericEventParseConfig {
                 program_id: RAYDIUM_CLMM_PROGRAM_ID,
                 protocol_type: ProtocolType::RaydiumClmm,
-                inner_instruction_discriminator: "",
+                inner_instruction_discriminator: &[],
                 instruction_discriminator: discriminators::DECREASE_LIQUIDITY_V2,
                 event_type: EventType::RaydiumClmmDecreaseLiquidityV2,
                 inner_instruction_parser: None,
@@ -76,7 +75,7 @@ impl RaydiumClmmEventParser {
             GenericEventParseConfig {
                 program_id: RAYDIUM_CLMM_PROGRAM_ID,
                 protocol_type: ProtocolType::RaydiumClmm,
-                inner_instruction_discriminator: "",
+                inner_instruction_discriminator: &[],
                 instruction_discriminator: discriminators::CREATE_POOL,
                 event_type: EventType::RaydiumClmmCreatePool,
                 inner_instruction_parser: None,
@@ -85,7 +84,7 @@ impl RaydiumClmmEventParser {
             GenericEventParseConfig {
                 program_id: RAYDIUM_CLMM_PROGRAM_ID,
                 protocol_type: ProtocolType::RaydiumClmm,
-                inner_instruction_discriminator: "",
+                inner_instruction_discriminator: &[],
                 instruction_discriminator: discriminators::INCREASE_LIQUIDITY_V2,
                 event_type: EventType::RaydiumClmmIncreaseLiquidityV2,
                 inner_instruction_parser: None,
@@ -94,7 +93,7 @@ impl RaydiumClmmEventParser {
             GenericEventParseConfig {
                 program_id: RAYDIUM_CLMM_PROGRAM_ID,
                 protocol_type: ProtocolType::RaydiumClmm,
-                inner_instruction_discriminator: "",
+                inner_instruction_discriminator: &[],
                 instruction_discriminator: discriminators::OPEN_POSITION_WITH_TOKEN_22_NFT,
                 event_type: EventType::RaydiumClmmOpenPositionWithToken22Nft,
                 inner_instruction_parser: None,
@@ -103,7 +102,7 @@ impl RaydiumClmmEventParser {
             GenericEventParseConfig {
                 program_id: RAYDIUM_CLMM_PROGRAM_ID,
                 protocol_type: ProtocolType::RaydiumClmm,
-                inner_instruction_discriminator: "",
+                inner_instruction_discriminator: &[],
                 instruction_discriminator: discriminators::OPEN_POSITION_V2,
                 event_type: EventType::RaydiumClmmOpenPositionV2,
                 inner_instruction_parser: None,
@@ -125,8 +124,6 @@ impl RaydiumClmmEventParser {
         if data.len() < 51 || accounts.len() < 22 {
             return None;
         }
-        let mut metadata = metadata;
-        metadata.set_id(format!("{}-{}-{}", metadata.signature, accounts[0], accounts[1]));
         Some(Box::new(RaydiumClmmOpenPositionV2Event {
             metadata,
             tick_lower_index: read_i32_le(data, 0)?,
@@ -173,8 +170,6 @@ impl RaydiumClmmEventParser {
         if data.len() < 51 || accounts.len() < 20 {
             return None;
         }
-        let mut metadata = metadata;
-        metadata.set_id(format!("{}-{}-{}", metadata.signature, accounts[0], accounts[1]));
         Some(Box::new(RaydiumClmmOpenPositionWithToken22NftEvent {
             metadata,
             tick_lower_index: read_i32_le(data, 0)?,
@@ -218,8 +213,6 @@ impl RaydiumClmmEventParser {
         if data.len() < 34 || accounts.len() < 15 {
             return None;
         }
-        let mut metadata = metadata;
-        metadata.set_id(format!("{}-{}-{}", metadata.signature, accounts[0], accounts[1]));
         Some(Box::new(RaydiumClmmIncreaseLiquidityV2Event {
             metadata,
             liquidity: read_u128_le(data, 0)?,
@@ -253,8 +246,6 @@ impl RaydiumClmmEventParser {
         if data.len() < 24 || accounts.len() < 13 {
             return None;
         }
-        let mut metadata = metadata;
-        metadata.set_id(format!("{}-{}-{}", metadata.signature, accounts[0], accounts[1]));
         Some(Box::new(RaydiumClmmCreatePoolEvent {
             metadata,
             sqrt_price_x64: read_u128_le(data, 0)?,
@@ -284,8 +275,6 @@ impl RaydiumClmmEventParser {
         if data.len() < 32 || accounts.len() < 16 {
             return None;
         }
-        let mut metadata = metadata;
-        metadata.set_id(format!("{}-{}-{}", metadata.signature, accounts[0], accounts[1]));
         Some(Box::new(RaydiumClmmDecreaseLiquidityV2Event {
             metadata,
             liquidity: read_u128_le(data, 0)?,
@@ -320,8 +309,6 @@ impl RaydiumClmmEventParser {
         if accounts.len() < 6 {
             return None;
         }
-        let mut metadata = metadata;
-        metadata.set_id(format!("{}-{}-{}", metadata.signature, accounts[0], accounts[1]));
         Some(Box::new(RaydiumClmmClosePositionEvent {
             metadata,
             nft_owner: accounts[0],
@@ -347,12 +334,6 @@ impl RaydiumClmmEventParser {
         let other_amount_threshold = read_u64_le(data, 8)?;
         let sqrt_price_limit_x64 = read_u128_le(data, 16)?;
         let is_base_input = read_u8_le(data, 32)?;
-
-        let mut metadata = metadata;
-        metadata.set_id(format!(
-            "{}-{}-{}-{}",
-            metadata.signature, accounts[2], accounts[3], accounts[4]
-        ));
 
         Some(Box::new(RaydiumClmmSwapEvent {
             metadata,
@@ -388,12 +369,6 @@ impl RaydiumClmmEventParser {
         let sqrt_price_limit_x64 = read_u128_le(data, 16)?;
         let is_base_input = read_u8_le(data, 32)?;
 
-        let mut metadata = metadata;
-        metadata.set_id(format!(
-            "{}-{}-{}-{}",
-            metadata.signature, accounts[2], accounts[3], accounts[4]
-        ));
-
         Some(Box::new(RaydiumClmmSwapV2Event {
             metadata,
             amount,
@@ -418,59 +393,4 @@ impl RaydiumClmmEventParser {
     }
 }
 
-#[async_trait::async_trait]
-impl EventParser for RaydiumClmmEventParser {
-    fn inner_instruction_configs(&self) -> HashMap<&'static str, Vec<GenericEventParseConfig>> {
-        self.inner.inner_instruction_configs()
-    }
-    fn instruction_configs(&self) -> HashMap<Vec<u8>, Vec<GenericEventParseConfig>> {
-        self.inner.instruction_configs()
-    }
-    fn parse_events_from_inner_instruction(
-        &self,
-        inner_instruction: &UiCompiledInstruction,
-        signature: &str,
-        slot: u64,
-        block_time: Option<Timestamp>,
-        program_received_time_ms: i64,
-        index: String,
-    ) -> Vec<Box<dyn UnifiedEvent>> {
-        self.inner.parse_events_from_inner_instruction(
-            inner_instruction,
-            signature,
-            slot,
-            block_time,
-            program_received_time_ms,
-            index,
-        )
-    }
-
-    fn parse_events_from_instruction(
-        &self,
-        instruction: &CompiledInstruction,
-        accounts: &[Pubkey],
-        signature: &str,
-        slot: u64,
-        block_time: Option<Timestamp>,
-        program_received_time_ms: i64,
-        index: String,
-    ) -> Vec<Box<dyn UnifiedEvent>> {
-        self.inner.parse_events_from_instruction(
-            instruction,
-            accounts,
-            signature,
-            slot,
-            block_time,
-            program_received_time_ms,
-            index,
-        )
-    }
-
-    fn should_handle(&self, program_id: &Pubkey) -> bool {
-        self.inner.should_handle(program_id)
-    }
-
-    fn supported_program_ids(&self) -> Vec<Pubkey> {
-        self.inner.supported_program_ids()
-    }
-}
+impl_event_parser_delegate!(RaydiumClmmEventParser);

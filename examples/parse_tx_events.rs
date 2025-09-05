@@ -1,5 +1,7 @@
 use anyhow::Result;
 use solana_sdk::commitment_config::CommitmentConfig;
+
+use solana_streamer_sdk::streaming::event_parser::UnifiedEvent;
 use solana_streamer_sdk::streaming::event_parser::{
     protocols::MutilEventParser, EventParser, Protocol,
 };
@@ -10,7 +12,7 @@ use std::sync::Arc;
 #[tokio::main]
 async fn main() -> Result<()> {
     let signatures = vec![
-        "42agNk1heHabNAVRzEKqQEt5adGkQzRYf9M1Q81uBJPCCHyP4cyCA1RNkgxXrtEAWeeGcytyh2TsnkBDgqnHeq4z",
+        "5sDWrTTkE69CNc6nrAX7SqPS7FiajJTg8TMog3Gve7KjVfrqYn8YZcX1kAoyKok976S4RTnK1EdCV8hRiDWg68Aj",
     ];
     // Validate signature format
     let mut valid_signatures = Vec::new();
@@ -52,7 +54,7 @@ async fn get_single_transaction_details(signature_str: &str) -> Result<()> {
         .get_transaction_with_config(
             &signature,
             solana_client::rpc_config::RpcTransactionConfig {
-                encoding: Some(UiTransactionEncoding::Binary),
+                encoding: Some(UiTransactionEncoding::Base64),
                 commitment: Some(CommitmentConfig::confirmed()),
                 max_supported_transaction_version: Some(0),
             },
@@ -98,30 +100,24 @@ async fn get_single_transaction_details(signature_str: &str) -> Result<()> {
                 Protocol::RaydiumAmmV4,
             ];
             let parser: Arc<dyn EventParser> = Arc::new(MutilEventParser::new(protocols, None));
-            let start_time = std::time::Instant::now();
-            let events = parser
-                .parse_transaction(
-                    transaction.transaction.clone(),
-                    &signature.to_string(),
-                    Some(transaction.slot),
-                    None,
-                    0,
+            parser
+                .parse_encoded_confirmed_transaction_with_status_meta(
+                    signature,
+                    transaction,
+                    Arc::new(move |event: &Box<dyn UnifiedEvent>| {
+                        println!("{:?}\n", event);
+                    }),
                     None,
                 )
-                .await
-                .unwrap_or_else(|_e| vec![]);
-
-            let end_time = std::time::Instant::now();
-            let duration = end_time.duration_since(start_time);
-            println!("Parsing time: {:?}", duration);
-            for event in events {
-                println!("{:?}\n", event);
-            }
+                .await?;
         }
         Err(e) => {
             println!("Failed to get transaction: {}", e);
         }
     }
+
+    println!("Press Ctrl+C to exit example...");
+    tokio::signal::ctrl_c().await?;
 
     Ok(())
 }

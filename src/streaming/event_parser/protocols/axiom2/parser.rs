@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use prost_types::Timestamp;
 use solana_sdk::{instruction::CompiledInstruction, pubkey::Pubkey};
 use solana_transaction_status::UiCompiledInstruction;
+use crate::impl_event_parser_delegate;
 use crate::streaming::event_parser::{
     common::{EventMetadata, EventType, ProtocolType},
     core::traits::{EventParser, GenericEventParseConfig, GenericEventParser, UnifiedEvent},
@@ -32,7 +33,7 @@ impl Axiom2EventParser {
             GenericEventParseConfig {
                 program_id: AXIOM_2_PROGRAM_ID,
                 protocol_type: ProtocolType::AxiomTrading2,
-                inner_instruction_discriminator: "",
+                inner_instruction_discriminator: &[],
                 instruction_discriminator: discriminators::AXIOM_2_PUMPSWAP_BUY_IX,
                 event_type: EventType::AxiomPumpSwapBuy,
                 inner_instruction_parser: None,
@@ -63,12 +64,7 @@ impl Axiom2EventParser {
         }
         let base_amount_out = read_u64_le(data, 8)?;
         let max_quote_amount_in = read_u64_le(data, 0)?;
-
-        let mut metadata = metadata;
-        metadata.set_id(format!(
-            "{}-{}-{}-{}",
-            metadata.signature, accounts[1], accounts[0], base_amount_out
-        ));
+        
 
         Some(Box::new(AxiomPumpSwapBuyEvent {
             metadata,
@@ -94,60 +90,4 @@ impl Axiom2EventParser {
 
 }
 
-#[async_trait::async_trait]
-impl EventParser for Axiom2EventParser {
-
-    fn inner_instruction_configs(&self) -> HashMap<&'static str, Vec<GenericEventParseConfig>> {
-        self.inner.inner_instruction_configs()
-    }
-    fn instruction_configs(&self) -> HashMap<Vec<u8>, Vec<GenericEventParseConfig>> {
-        self.inner.instruction_configs()
-    }
-    fn parse_events_from_inner_instruction(
-        &self,
-        inner_instruction: &UiCompiledInstruction,
-        signature: &str,
-        slot: u64,
-        block_time: Option<Timestamp>,
-        program_received_time_ms: i64,
-        index: String,
-    ) -> Vec<Box<dyn UnifiedEvent>> {
-        self.inner.parse_events_from_inner_instruction(
-            inner_instruction,
-            signature,
-            slot,
-            block_time,
-            program_received_time_ms,
-            index,
-        )
-    }
-
-    fn parse_events_from_instruction(
-        &self,
-        instruction: &CompiledInstruction,
-        accounts: &[Pubkey],
-        signature: &str,
-        slot: u64,
-        block_time: Option<Timestamp>,
-        program_received_time_ms: i64,
-        index: String,
-    ) -> Vec<Box<dyn UnifiedEvent>> {
-        self.inner.parse_events_from_instruction(
-            instruction,
-            accounts,
-            signature,
-            slot,
-            block_time,
-            program_received_time_ms,
-            index,
-        )
-    }
-
-    fn should_handle(&self, program_id: &Pubkey) -> bool {
-        self.inner.should_handle(program_id)
-    }
-
-    fn supported_program_ids(&self) -> Vec<Pubkey> {
-        self.inner.supported_program_ids()
-    }
-}
+impl_event_parser_delegate!(Axiom2EventParser);

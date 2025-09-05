@@ -228,10 +228,10 @@ impl_unified_event!(
 pub struct PumpFunBondingCurveAccountEvent {
     #[borsh(skip)]
     pub metadata: EventMetadata,
-    pub pubkey: String,
+    pub pubkey: Pubkey,
     pub executable: bool,
     pub lamports: u64,
-    pub owner: String,
+    pub owner: Pubkey,
     pub rent_epoch: u64,
     pub bonding_curve: BondingCurve,
 }
@@ -243,10 +243,10 @@ impl_unified_event!(PumpFunBondingCurveAccountEvent,);
 pub struct PumpFunGlobalAccountEvent {
     #[borsh(skip)]
     pub metadata: EventMetadata,
-    pub pubkey: String,
+    pub pubkey: Pubkey,
     pub executable: bool,
     pub lamports: u64,
-    pub owner: String,
+    pub owner: Pubkey,
     pub rent_epoch: u64,
     pub global: Global,
 }
@@ -255,9 +255,15 @@ impl_unified_event!(PumpFunGlobalAccountEvent,);
 /// 事件鉴别器常量
 pub mod discriminators {
     // 事件鉴别器
-    pub const CREATE_TOKEN_EVENT: &str = "0xe445a52e51cb9a1d1b72a94ddeeb6376";
-    pub const TRADE_EVENT: &str = "0xe445a52e51cb9a1dbddb7fd34ee661ee";
-    pub const COMPLETE_PUMP_AMM_MIGRATION_EVENT: &str = "0xe445a52e51cb9a1dbde95db95c94ea94";
+    // pub const CREATE_TOKEN_EVENT: &str = "0xe445a52e51cb9a1d1b72a94ddeeb6376";
+    pub const CREATE_TOKEN_EVENT: &[u8] =
+        &[228, 69, 165, 46, 81, 203, 154, 29, 27, 114, 169, 77, 222, 235, 99, 118];
+    // pub const TRADE_EVENT: &str = "0xe445a52e51cb9a1dbddb7fd34ee661ee";
+    pub const TRADE_EVENT: &[u8] =
+        &[228, 69, 165, 46, 81, 203, 154, 29, 189, 219, 127, 211, 78, 230, 97, 238];
+    // pub const COMPLETE_PUMP_AMM_MIGRATION_EVENT: &str = "0xe445a52e51cb9a1dbde95db95c94ea94";
+    pub const COMPLETE_PUMP_AMM_MIGRATION_EVENT: &[u8] =
+        &[228, 69, 165, 46, 81, 203, 154, 29, 189, 233, 93, 185, 92, 148, 234, 148];
 
     // 指令鉴别器
     pub const CREATE_TOKEN_IX: &[u8] = &[24, 30, 200, 40, 5, 28, 7, 119];

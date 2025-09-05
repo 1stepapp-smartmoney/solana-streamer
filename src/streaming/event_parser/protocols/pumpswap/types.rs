@@ -43,10 +43,10 @@ pub fn global_config_parser(
     if let Some(config) = global_config_decode(&account.data[8..GLOBAL_CONFIG_SIZE + 8]) {
         Some(Box::new(PumpSwapGlobalConfigAccountEvent {
             metadata,
-            pubkey: account.pubkey.to_string(),
+            pubkey: account.pubkey,
             executable: account.executable,
             lamports: account.lamports,
-            owner: account.owner.to_string(),
+            owner: account.owner,
             rent_epoch: account.rent_epoch,
             global_config: config,
         }))
@@ -88,10 +88,10 @@ pub fn pool_parser(
     if let Some(pool) = pool_decode(&account.data[8..POOL_SIZE + 8]) {
         Some(Box::new(PumpSwapPoolAccountEvent {
             metadata,
-            pubkey: account.pubkey.to_string(),
+            pubkey: account.pubkey,
             executable: account.executable,
             lamports: account.lamports,
-            owner: account.owner.to_string(),
+            owner: account.owner,
             rent_epoch: account.rent_epoch,
             pool: pool,
         }))

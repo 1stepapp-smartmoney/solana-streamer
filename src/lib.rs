@@ -1,3 +1,3 @@
-pub mod streaming;
-pub mod protos;
 pub mod common;
+pub mod protos;
+pub mod streaming;

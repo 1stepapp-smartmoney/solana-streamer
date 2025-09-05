@@ -3,6 +3,7 @@ use solana_streamer_sdk::{
     streaming::{
         event_parser::{
             common::{filter::EventTypeFilter, EventType},
+            core::account_event_parser::CommonAccountEvent,
             protocols::{
                 bonk::{
                     parser::BONK_PROGRAM_ID, BonkGlobalConfigAccountEvent, BonkMigrateToAmmEvent,
@@ -61,7 +62,7 @@ async fn test_grpc() -> Result<(), Box<dyn std::error::Error>> {
     println!("Subscribing to Yellowstone gRPC events...");
 
     // Create low-latency configuration
-    let mut config = ClientConfig::low_latency();
+    let mut config: ClientConfig = ClientConfig::low_latency();
     // Enable performance monitoring, has performance overhead, disabled by default
     config.enable_metrics = true;
     let grpc = YellowstoneGrpc::new_with_config(
@@ -112,7 +113,7 @@ async fn test_grpc() -> Result<(), Box<dyn std::error::Error>> {
     // No event filtering, includes all events
     let event_type_filter = None;
     // Only include PumpSwapBuy events and PumpSwapSell events
-    // let event_type_filter = EventTypeFilter { include: vec![EventType::PumpSwapBuy, EventType::PumpSwapSell] };
+    // let event_type_filter = Some(EventTypeFilter { include: vec![EventType::PumpFunBuy] });
 
     println!("Starting to listen for events, press Ctrl+C to stop...");
     println!("Monitoring programs: {:?}", account_include);
@@ -188,11 +189,15 @@ async fn test_shreds() -> Result<(), Box<dyn std::error::Error>> {
 
 fn create_event_callback() -> impl Fn(Box<dyn UnifiedEvent>) {
     |event: Box<dyn UnifiedEvent>| {
-        println!("🎉 Event received! Type: {:?}, ID: {}", event.event_type(), event.id());
+        println!(
+            "🎉 Event received! Type: {:?}, transaction_index: {:?}",
+            event.event_type(),
+            event.transaction_index()
+        );
         match_event!(event, {
             // -------------------------- block meta -----------------------
             BlockMetaEvent => |e: BlockMetaEvent| {
-                println!("BlockMetaEvent: {e:?}");
+                println!("BlockMetaEvent: {:?}", e.metadata.handle_us);
             },
             // -------------------------- bonk -----------------------
             BonkPoolCreateEvent => |e: BonkPoolCreateEvent| {
@@ -328,6 +333,9 @@ fn create_event_callback() -> impl Fn(Box<dyn UnifiedEvent>) {
             },
             RaydiumCpmmPoolStateAccountEvent => |e: RaydiumCpmmPoolStateAccountEvent| {
                 println!("RaydiumCpmmPoolStateAccountEvent: {e:?}");
+            },
+            CommonAccountEvent => |e: CommonAccountEvent| {
+                println!("CommonAccountEvent: {e:?}");
             },
         });
     }
