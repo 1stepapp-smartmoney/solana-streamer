@@ -13,6 +13,7 @@ pub mod mutil;
 
 pub mod raydium_amm_v4;
 pub mod ProgF5tfv;
+pub mod prog6HB1V;
 
 pub use pumpfun::PumpFunEventParser;
 pub use pumpswap::PumpSwapEventParser;

@@ -1,13 +1,11 @@
-use borsh::BorshDeserialize;
+use borsh_derive::BorshDeserialize;
 use serde::{Deserialize, Serialize};
-use solana_sdk::pubkey::Pubkey;
-
-use crate::streaming::event_parser::common::EventMetadata;
+use solana_program::pubkey::Pubkey;
 use crate::impl_unified_event;
+use crate::streaming::event_parser::common::EventMetadata;
 
-/// 买入事件
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, BorshDeserialize)]
-pub struct AxiomPumpSwapBuyEvent {
+pub struct Prog6HB1VPumpSwapBuyEvent {
     #[borsh(skip)]
     pub metadata: EventMetadata,
     pub timestamp: i64,
@@ -62,7 +60,7 @@ pub struct AxiomPumpSwapBuyEvent {
 
 // 使用宏生成UnifiedEvent实现，指定需要合并的字段
 impl_unified_event!(
-    AxiomPumpSwapBuyEvent,
+    Prog6HB1VPumpSwapBuyEvent,
     timestamp,
     base_amount_out,
     max_quote_amount_in,
@@ -89,6 +87,6 @@ impl_unified_event!(
 );
 /// 事件鉴别器常量
 pub mod discriminators {
-    pub const AXIOM_2_PUMPSWAP_BUY_IX: &[u8] = &[0];
+    pub const PROG6HB1V_PUMPSWAP_BUY_IX: &[u8] = &[0];
 
 }

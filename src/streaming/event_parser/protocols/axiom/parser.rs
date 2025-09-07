@@ -13,6 +13,9 @@ use crate::streaming::event_parser::{
 pub const AXIOM_1_PROGRAM_ID: Pubkey =
     solana_sdk::pubkey!("AxiomfHaWDemCFBLBayqnEnNwE6b7B2Qz3UmzMpgbMG6");
 
+pub const AXIOM_1_PROGRAM_VAR_1_ID: Pubkey =
+    solana_sdk::pubkey!("F5tfvbLog9VdGUPqBDTT8rgXvTTcq7e5UiGnupL1zvBq");
+
 /// Axiom Trading Program 1事件解析器
 pub struct AxiomEventParser {
     inner: GenericEventParser,
@@ -37,9 +40,18 @@ impl AxiomEventParser {
                 inner_instruction_parser: None,
                 instruction_parser: Some(Self::parse_axiom_pumpfun_buy_instruction),
             },
+            GenericEventParseConfig {
+                program_id: AXIOM_1_PROGRAM_VAR_1_ID,
+                protocol_type: ProtocolType::AxiomTrading1,
+                inner_instruction_discriminator: &[],
+                instruction_discriminator: discriminators::AXIOM_PUMPFUN_BUY_IX,
+                event_type: EventType::AxiomPumpFunBuy,
+                inner_instruction_parser: None,
+                instruction_parser: Some(Self::parse_axiom_pumpfun_buy_instruction),
+            },
         ];
 
-        let inner = GenericEventParser::new(vec![AXIOM_1_PROGRAM_ID], configs);
+        let inner = GenericEventParser::new(vec![AXIOM_1_PROGRAM_ID,AXIOM_1_PROGRAM_VAR_1_ID], configs);
 
         Self { inner }
     }

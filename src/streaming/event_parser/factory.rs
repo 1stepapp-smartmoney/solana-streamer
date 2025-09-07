@@ -6,8 +6,10 @@ use crate::streaming::event_parser::protocols::{bonk::parser::BONK_PROGRAM_ID, p
 use crate::streaming::event_parser::protocols::meteora_dammv2::parser::METEORA_DAMM_V2_PROGRAM_ID;
 use crate::streaming::event_parser::protocols::meteora_dbc::MeteoraDBCEventParser;
 use crate::streaming::event_parser::protocols::meteora_dbc::parser::METEORA_DBC_PROGRAM_ID;
-use crate::streaming::event_parser::protocols::axiom::parser::AXIOM_1_PROGRAM_ID;
-use crate::streaming::event_parser::protocols::axiom2::parser::AXIOM_2_PROGRAM_ID;
+use crate::streaming::event_parser::protocols::axiom::parser::{AXIOM_1_PROGRAM_ID, AXIOM_1_PROGRAM_VAR_1_ID};
+use crate::streaming::event_parser::protocols::axiom2::parser::{AXIOM_2_PROGRAM_ID, AXIOM_2_PROGRAM_VAR_1_ID};
+use crate::streaming::event_parser::protocols::prog6HB1V::parser::{PROG6HB1V_PROGRAM_ID};
+use crate::streaming::event_parser::protocols::prog6HB1V::Prog6HB1VEventParser;
 use crate::streaming::event_parser::protocols::ProgF5tfv::parser::PROGF5TFV_PROGRAM_ID;
 use crate::streaming::event_parser::protocols::raydium_amm_v4::parser::RAYDIUM_AMM_V4_PROGRAM_ID;
 use super::{
@@ -30,6 +32,7 @@ pub enum Protocol {
     AxiomProgram2,
     RaydiumAmmV4,
     ProgF5tfv,
+    Prog6HB1V, // 协议6HB1V
 }
 
 impl Protocol {
@@ -43,10 +46,11 @@ impl Protocol {
             Protocol::Phonton => vec![PHOTON_PROGRAM_ID],
             Protocol::MeteoraDBC => vec![METEORA_DBC_PROGRAM_ID],
             Protocol::MeteoraDAMMv2 => vec![METEORA_DAMM_V2_PROGRAM_ID],
-            Protocol::AxiomProgram1 => vec![AXIOM_1_PROGRAM_ID],
-            Protocol::AxiomProgram2 => vec![AXIOM_2_PROGRAM_ID],
+            Protocol::AxiomProgram1 => vec![AXIOM_1_PROGRAM_ID, AXIOM_1_PROGRAM_VAR_1_ID],
+            Protocol::AxiomProgram2 => vec![AXIOM_2_PROGRAM_ID, AXIOM_2_PROGRAM_VAR_1_ID],
             Protocol::RaydiumAmmV4 => vec![RAYDIUM_AMM_V4_PROGRAM_ID],
             Protocol::ProgF5tfv => vec![PROGF5TFV_PROGRAM_ID],
+            Protocol::Prog6HB1V => vec![PROG6HB1V_PROGRAM_ID],
         }
     }
 }
@@ -66,6 +70,7 @@ impl std::fmt::Display for Protocol {
             Protocol::AxiomProgram2 => write!(f, "AxiomTradingProgram2"),
             Protocol::RaydiumAmmV4 => write!(f, "RaydiumAmmV4"),
             Protocol::ProgF5tfv => write!(f, "ProgF5tfv"),
+            Protocol::Prog6HB1V => write!(f, "Prog6HB1V"),
         }
     }
 }
@@ -87,6 +92,7 @@ impl std::str::FromStr for Protocol {
             "axiomprogram1" => Ok(Protocol::AxiomProgram1),
             "axiomprogram2" => Ok(Protocol::AxiomProgram2),
             "progf5tfv" => Ok(Protocol::ProgF5tfv),
+            "prog6hb1v" => Ok(Protocol::Prog6HB1V),
             _ => Err(anyhow!("Unsupported protocol: {}", s)),
         }
     }
@@ -94,7 +100,7 @@ impl std::str::FromStr for Protocol {
 
 static EVENT_PARSERS: LazyLock<HashMap<Protocol, Arc<dyn EventParser>>> = LazyLock::new(|| {
     // 预分配容量，避免动态扩容
-    let mut parsers: HashMap<Protocol, Arc<dyn EventParser>> = HashMap::with_capacity(12);
+    let mut parsers: HashMap<Protocol, Arc<dyn EventParser>> = HashMap::with_capacity(13);
     parsers.insert(Protocol::PumpSwap, Arc::new(PumpSwapEventParser::new()));
     parsers.insert(Protocol::PumpFun, Arc::new(PumpFunEventParser::new()));
     parsers.insert(Protocol::Bonk, Arc::new(BonkEventParser::new()));
@@ -107,6 +113,7 @@ static EVENT_PARSERS: LazyLock<HashMap<Protocol, Arc<dyn EventParser>>> = LazyLo
     parsers.insert(Protocol::AxiomProgram2, Arc::new(Axiom2EventParser::new()));
     parsers.insert(Protocol::RaydiumAmmV4, Arc::new(RaydiumAmmV4EventParser::new()));
     parsers.insert(Protocol::ProgF5tfv, Arc::new(F5tfvEventParser::new()));
+    parsers.insert(Protocol::Prog6HB1V, Arc::new(Prog6HB1VEventParser::new()));
     parsers
 });
 
@@ -144,7 +151,8 @@ impl EventParserFactory {
              Protocol::AxiomProgram1,
              Protocol::AxiomProgram2,
              Protocol::RaydiumAmmV4,
-             Protocol::ProgF5tfv
+             Protocol::ProgF5tfv,
+             Protocol::Prog6HB1V
         ]
     }
 

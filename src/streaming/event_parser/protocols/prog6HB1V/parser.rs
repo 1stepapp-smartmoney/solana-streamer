@@ -6,58 +6,45 @@ use crate::impl_event_parser_delegate;
 use crate::streaming::event_parser::{
     common::{EventMetadata, EventType, ProtocolType},
     core::traits::{EventParser, GenericEventParseConfig, GenericEventParser, UnifiedEvent},
-    protocols::axiom2::{discriminators, AxiomPumpSwapBuyEvent},
 };
 use crate::streaming::event_parser::common::read_u64_le;
-use crate::streaming::event_parser::protocols::pumpswap::PumpSwapBuyEvent;
+use crate::streaming::event_parser::protocols::prog6HB1V::{discriminators, Prog6HB1VPumpSwapBuyEvent};
 
-/// Axiom Trading Program 1程序ID
-pub const AXIOM_2_PROGRAM_ID: Pubkey =
-    solana_sdk::pubkey!("AxiomxSitiyXyPjKgJ9XSrdhsydtZsskZTEDam3PxKcC");
-
-pub const AXIOM_2_PROGRAM_VAR_1_ID: Pubkey =
+/// Program 6HB1V ID  疑似Axiom2
+pub const PROG6HB1V_PROGRAM_ID: Pubkey =
     solana_sdk::pubkey!("6HB1VBBS8LrdQiR9MZcXV5VdpKFb7vjTMZuQQEQEPioC");
 
-/// Axiom Trading Program 1事件解析器
-pub struct Axiom2EventParser {
+/// Program 6HB1V 事件解析器
+pub struct Prog6HB1VEventParser {
     inner: GenericEventParser,
 }
 
-impl Default for Axiom2EventParser {
+impl Default for Prog6HB1VEventParser {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Axiom2EventParser {
+impl Prog6HB1VEventParser {
     pub fn new() -> Self {
         // 配置所有事件类型
         let configs = vec![
             GenericEventParseConfig {
-                program_id: AXIOM_2_PROGRAM_ID,
-                protocol_type: ProtocolType::AxiomTrading2,
+                program_id: PROG6HB1V_PROGRAM_ID,
+                protocol_type: ProtocolType::Program6HB1V,
                 inner_instruction_discriminator: &[],
-                instruction_discriminator: discriminators::AXIOM_2_PUMPSWAP_BUY_IX,
-                event_type: EventType::AxiomPumpSwapBuy,
+                instruction_discriminator: discriminators::PROG6HB1V_PUMPSWAP_BUY_IX,
+                event_type: EventType::Prog6HB1VPumpSwapBuy,
                 inner_instruction_parser: None,
-                instruction_parser: Some(Self::parse_axiom_pumpswap_buy_instruction),
-            },
-            GenericEventParseConfig {
-                program_id: AXIOM_2_PROGRAM_VAR_1_ID,
-                protocol_type: ProtocolType::AxiomTrading2,
-                inner_instruction_discriminator: &[],
-                instruction_discriminator: discriminators::AXIOM_2_PUMPSWAP_BUY_IX,
-                event_type: EventType::AxiomPumpSwapBuy,
-                inner_instruction_parser: None,
-                instruction_parser: Some(Self::parse_axiom_pumpswap_buy_instruction),
+                instruction_parser: Some(Self::parse_prog6hb1v_pumpswap_buy_instruction),
             },
         ];
 
-        let inner = GenericEventParser::new(vec![AXIOM_2_PROGRAM_ID,AXIOM_2_PROGRAM_VAR_1_ID], configs);
+        let inner = GenericEventParser::new(vec![PROG6HB1V_PROGRAM_ID], configs);
 
         Self { inner }
     }
-    fn parse_axiom_trade_inner_instruction(
+    fn parse_prog6hb1v_trade_inner_instruction(
         data: &[u8],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
@@ -65,20 +52,20 @@ impl Axiom2EventParser {
     }
 
     // 解析pumpswap买入指令事件
-    fn parse_axiom_pumpswap_buy_instruction(
+    fn parse_prog6hb1v_pumpswap_buy_instruction(
         data: &[u8],
         accounts: &[Pubkey],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
 
-        if data.len() < 16 || accounts.len() < 21 {
+        if data.len() < 16 || accounts.len() < 19 {
             return None;
         }
         let base_amount_out = read_u64_le(data, 8)?;
         let max_quote_amount_in = read_u64_le(data, 0)?;
 
 
-        Some(Box::new(AxiomPumpSwapBuyEvent {
+        Some(Box::new(Prog6HB1VPumpSwapBuyEvent {
             metadata,
             base_amount_out,
             max_quote_amount_in,
@@ -102,4 +89,4 @@ impl Axiom2EventParser {
 
 }
 
-impl_event_parser_delegate!(Axiom2EventParser);
+impl_event_parser_delegate!(Prog6HB1VEventParser);
