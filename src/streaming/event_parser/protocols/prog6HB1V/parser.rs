@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use prost_types::Timestamp;
-use solana_sdk::{instruction::CompiledInstruction, pubkey::Pubkey};
+use solana_sdk::pubkey::Pubkey;
 use solana_transaction_status::UiCompiledInstruction;
 use crate::impl_event_parser_delegate;
 use crate::streaming::event_parser::{

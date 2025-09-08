@@ -151,7 +151,7 @@ impl PumpSwapEventParser {
         accounts: &[Pubkey],
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        if data.len() < 16 || accounts.len() < 11 {
+        if data.len() < 16 || accounts.len() < 13 {
             return None;
         }
 
