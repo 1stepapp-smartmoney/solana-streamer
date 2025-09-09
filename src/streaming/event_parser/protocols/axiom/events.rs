@@ -70,6 +70,10 @@ pub struct AxiomPumpFunTradeEvent {
     pub global_volume_accumulator: Pubkey,
     #[borsh(skip)]
     pub user_volume_accumulator: Pubkey,
+    #[borsh(skip)]
+    pub fee_config: Pubkey,
+    #[borsh(skip)]
+    pub fee_program: Pubkey,
 }
 
 impl_unified_event!(
