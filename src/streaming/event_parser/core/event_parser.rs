@@ -350,6 +350,7 @@ impl EventParser {
         let has_program = accounts.iter().any(|account| self.should_handle(account));
         if has_program {
             // 解析每个指令
+            let mut events = vec![];
             for (index, instruction) in compiled_instructions.iter().enumerate() {
                 if let Some(program_id) = accounts.get(instruction.program_id_index as usize) {
                     let program_id = *program_id; // 克隆程序ID，避免借用冲突
@@ -362,44 +363,85 @@ impl EventParser {
                         if *max_idx as usize >= accounts.len() {
                             accounts.resize(*max_idx as usize + 1, Pubkey::default());
                         }
-                        self.parse_events_from_instruction(
-                            instruction,
-                            &accounts,
-                            signature,
-                            slot.unwrap_or(0),
-                            block_time,
-                            recv_us,
-                            index as i64,
-                            None,
-                            bot_wallet,
-                            transaction_index,
-                            inner_instructions,
-                            Arc::clone(&callback),
-                            tx_pack_callback.clone(),
-                        )?;
-                    }
-                    // Immediately process inner instructions for correct ordering
-                    if let Some(inner_instructions) = inner_instructions {
-                        for (inner_index, inner_instruction) in
-                            inner_instructions.instructions.iter().enumerate()
-                        {
-                            self.parse_events_from_instruction(
-                                &inner_instruction.instruction,
+                        if tx_pack_callback.is_some() {
+                            let parsed_events = self.parse_events_from_instruction_and_pack(
+                                instruction,
                                 &accounts,
                                 signature,
                                 slot.unwrap_or(0),
                                 block_time,
                                 recv_us,
                                 index as i64,
-                                Some(inner_index as i64),
+                                None,
                                 bot_wallet,
                                 transaction_index,
-                                Some(&inner_instructions),
+                                inner_instructions,
+                            )?;
+                            events.extend(parsed_events);
+
+                        } else {
+                            self.parse_events_from_instruction(
+                                instruction,
+                                &accounts,
+                                signature,
+                                slot.unwrap_or(0),
+                                block_time,
+                                recv_us,
+                                index as i64,
+                                None,
+                                bot_wallet,
+                                transaction_index,
+                                inner_instructions,
                                 Arc::clone(&callback),
-                                tx_pack_callback.clone(),
                             )?;
                         }
+
                     }
+                    // Immediately process inner instructions for correct ordering
+                    if let Some(inner_instructions) = inner_instructions {
+                        for (inner_index, inner_instruction) in
+                            inner_instructions.instructions.iter().enumerate()
+                        {
+                            if tx_pack_callback.is_some() {
+                                let parsed_events = self.parse_events_from_instruction_and_pack(
+                                    &inner_instruction.instruction,
+                                    &accounts,
+                                    signature,
+                                    slot.unwrap_or(0),
+                                    block_time,
+                                    recv_us,
+                                    index as i64,
+                                    Some(inner_index as i64),
+                                    bot_wallet,
+                                    transaction_index,
+                                    Some(&inner_instructions),
+                                )?;
+                                events.extend(parsed_events);
+
+                            } else {
+                                self.parse_events_from_instruction(
+                                    &inner_instruction.instruction,
+                                    &accounts,
+                                    signature,
+                                    slot.unwrap_or(0),
+                                    block_time,
+                                    recv_us,
+                                    index as i64,
+                                    Some(inner_index as i64),
+                                    bot_wallet,
+                                    transaction_index,
+                                    Some(&inner_instructions),
+                                    Arc::clone(&callback),
+                                )?;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if let Some(tx_pack_cb) = tx_pack_callback {
+                if !events.is_empty() {
+                    tx_pack_cb(&events);
                 }
             }
         }
@@ -875,7 +917,6 @@ impl EventParser {
         transaction_index: Option<u64>,
         inner_instructions: Option<&InnerInstructions>,
         callback: Arc<dyn for<'a> Fn(&'a Box<dyn UnifiedEvent>) + Send + Sync>,
-        tx_pack_callback: Option<Arc<dyn for<'a> Fn(&'a Vec<Box<dyn UnifiedEvent>>) + Send + Sync>>
     ) -> anyhow::Result<()> {
         let program_id = accounts[instruction.program_id_index as usize];
         if !self.should_handle(&program_id) {
@@ -927,6 +968,141 @@ impl EventParser {
                     transaction_index,
                 )
                 .map(|event| ((*disc).clone(), (*config).clone(), event))
+            })
+            .collect();
+
+        for (_disc, config, mut event) in all_results {
+            // 阻塞处理：原有的同步逻辑
+            let mut inner_instruction_event: Option<Box<dyn UnifiedEvent>> = None;
+            if inner_instructions.is_some() {
+                let inner_instructions_ref = inner_instructions.unwrap();
+
+                // 并行执行两个任务
+                let (inner_event_result, swap_data_result) = std::thread::scope(|s| {
+                    let inner_event_handle = s.spawn(|| {
+                        for inner_instruction in inner_instructions_ref.instructions.iter() {
+                            let result = self.parse_events_from_inner_instruction(
+                                &inner_instruction.instruction,
+                                signature,
+                                slot,
+                                block_time,
+                                recv_us,
+                                outer_index,
+                                inner_index,
+                                transaction_index,
+                                &config,
+                            );
+                            if result.len() > 0 {
+                                return Some(result[0].clone());
+                            }
+                        }
+                        None
+                    });
+
+                    let swap_data_handle = s.spawn(|| {
+                        if !event.swap_data_is_parsed() {
+                            parse_swap_data_from_next_instructions(
+                                &*event,
+                                inner_instructions_ref,
+                                inner_index.unwrap_or(-1_i64) as i8,
+                                &accounts,
+                            )
+                        } else {
+                            None
+                        }
+                    });
+
+                    // 等待两个任务完成
+                    (inner_event_handle.join().unwrap(), swap_data_handle.join().unwrap())
+                });
+
+                inner_instruction_event = inner_event_result;
+                if let Some(swap_data) = swap_data_result {
+                    event.set_swap_data(swap_data);
+                }
+            }
+
+            // Skip events that require inner instruction data but don't have it
+            if config.requires_inner_instruction && inner_instruction_event.is_none() {
+                continue;
+            }
+
+            // 合并事件
+            if let Some(inner_instruction_event) = inner_instruction_event {
+                event.merge(&*inner_instruction_event);
+            }
+            // 设置处理时间（使用高性能时钟）
+            event.set_handle_us(elapsed_micros_since(recv_us));
+            event = process_event(event, bot_wallet);
+            callback(&event);
+        }
+        Ok(())
+    }
+
+    fn parse_events_from_instruction_and_pack(
+        &self,
+        instruction: &CompiledInstruction,
+        accounts: &[Pubkey],
+        signature: Signature,
+        slot: u64,
+        block_time: Option<Timestamp>,
+        recv_us: i64,
+        outer_index: i64,
+        inner_index: Option<i64>,
+        bot_wallet: Option<Pubkey>,
+        transaction_index: Option<u64>,
+        inner_instructions: Option<&InnerInstructions>,
+    ) -> anyhow::Result<Vec<Box<dyn UnifiedEvent>>> {
+        let program_id = accounts[instruction.program_id_index as usize];
+        if !self.should_handle(&program_id) {
+            return Ok(vec![]);
+        }
+        // 一维化并行处理：将所有 (discriminator, config) 组合展开并行处理
+        let all_processing_params: Vec<_> = self
+            .instruction_configs
+            .iter()
+            .filter(|(disc, _)| {
+                // Use SIMD-optimized data validation and discriminator matching
+                SimdUtils::validate_instruction_data_simd(&instruction.data, disc.len(), disc.len())
+                    && SimdUtils::fast_discriminator_match(&instruction.data, disc)
+            })
+            .flat_map(|(disc, configs)| {
+                configs
+                    .iter()
+                    .filter(|config| config.program_id == program_id)
+                    .map(move |config| (disc, config))
+            })
+            .collect();
+
+        // Use SIMD-optimized account indices validation (只需检查一次)
+        if !SimdUtils::validate_account_indices_simd(&instruction.accounts, accounts.len()) {
+            return Ok(vec![]);
+        }
+
+        // 使用缓存构建账户公钥列表，避免重复分配 (只需构建一次)
+        let account_pubkeys = {
+            let mut cache_guard = self.account_cache.lock();
+            cache_guard.build_account_pubkeys(&instruction.accounts, accounts).to_vec()
+        };
+
+        // 并行处理所有 (discriminator, config) 组合
+        let all_results: Vec<_> = all_processing_params
+            .iter()
+            .filter_map(|(disc, config)| {
+                let data = &instruction.data[disc.len()..];
+                self.parse_instruction_event(
+                    config,
+                    data,
+                    &account_pubkeys,
+                    signature,
+                    slot,
+                    block_time,
+                    recv_us,
+                    outer_index,
+                    inner_index,
+                    transaction_index,
+                )
+                    .map(|event| ((*disc).clone(), (*config).clone(), event))
             })
             .collect();
 
@@ -995,19 +1171,9 @@ impl EventParser {
             // 设置处理时间（使用高性能时钟）
             event.set_handle_us(elapsed_micros_since(recv_us));
             event = process_event(event, bot_wallet);
-            if tx_pack_callback.is_none() {
-                callback(&event);
-            } else {
-                events.push(event);
-            }
+            events.push(event);
         }
-
-        if let Some(tx_pack_callback) = tx_pack_callback {
-            if events.len() > 0 {
-                tx_pack_callback(&events);
-            }
-        }
-        Ok(())
+        Ok(events)
     }
 
     /// 从指令中解析事件
