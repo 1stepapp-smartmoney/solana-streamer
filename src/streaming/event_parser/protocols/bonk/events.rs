@@ -329,6 +329,7 @@ pub mod discriminators {
     pub const SELL_EXACT_OUT: &[u8] = &[95, 200, 71, 34, 8, 9, 11, 166];
     pub const INITIALIZE: &[u8] = &[175, 175, 109, 31, 13, 152, 155, 237];
     pub const INITIALIZE_V2: &[u8] = &[67, 153, 175, 39, 218, 16, 38, 32];
+    pub const INITIALIZE_WITH_TOKEN_2022: &[u8] = &[37, 190, 126, 222, 44, 154, 171, 17];
     pub const MIGRATE_TO_AMM: &[u8] = &[207, 82, 192, 145, 254, 207, 145, 223];
     pub const MIGRATE_TO_CP_SWAP: &[u8] = &[136, 92, 200, 103, 28, 218, 144, 140];
 

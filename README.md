@@ -1,37 +1,99 @@
-# Solana Streamer
-[中文](https://github.com/0xfnzero/solana-streamer/blob/main/README_CN.md) | [English](https://github.com/0xfnzero/solana-streamer/blob/main/README.md) | [Telegram](https://t.me/fnzero_group)
+<div align="center">
+    <h1>🌊 Solana Streamer</h1>
+    <h3><em>Real-time event streaming from Solana DEX trading programs.</em></h3>
+</div>
 
-A lightweight Rust library for real-time event streaming from Solana DEX trading programs. This library provides efficient event parsing and subscription capabilities for PumpFun, PumpSwap, Bonk, and Raydium CPMM protocols.
+<p align="center">
+    <strong>A lightweight Rust library providing efficient event parsing and subscription capabilities for PumpFun, PumpSwap, Bonk, and Raydium protocols.</strong>
+</p>
 
-## Project Features
+<p align="center">
+    <a href="https://crates.io/crates/solana-streamer-sdk">
+        <img src="https://img.shields.io/crates/v/solana-streamer-sdk.svg" alt="Crates.io">
+    </a>
+    <a href="https://docs.rs/solana-streamer-sdk">
+        <img src="https://docs.rs/solana-streamer-sdk/badge.svg" alt="Documentation">
+    </a>
+    <a href="https://github.com/0xfnzero/solana-streamer/blob/main/LICENSE">
+        <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
+    </a>
+    <a href="https://github.com/0xfnzero/solana-streamer">
+        <img src="https://img.shields.io/github/stars/0xfnzero/solana-streamer?style=social" alt="GitHub stars">
+    </a>
+    <a href="https://github.com/0xfnzero/solana-streamer/network">
+        <img src="https://img.shields.io/github/forks/0xfnzero/solana-streamer?style=social" alt="GitHub forks">
+    </a>
+</p>
 
-1. **Real-time Event Streaming**: Subscribe to live trading events from multiple Solana DEX protocols
-2. **Yellowstone gRPC Support**: High-performance event subscription using Yellowstone gRPC
-3. **ShredStream Support**: Alternative event streaming using ShredStream protocol
-4. **Multi-Protocol Support**: 
-   - **PumpFun**: Meme coin trading platform events
-   - **PumpSwap**: PumpFun's swap protocol events
-   - **Bonk**: Token launch platform events (letsbonk.fun)
-   - **Raydium CPMM**: Raydium's Concentrated Pool Market Maker events
-   - **Raydium CLMM**: Raydium's Concentrated Liquidity Market Maker events
-   - **Raydium AMM V4**: Raydium's Automated Market Maker V4 events
-5. **Unified Event Interface**: Consistent event handling across all supported protocols
-6. **Event Parsing System**: Automatic parsing and categorization of protocol-specific events
-7. **Account State Monitoring**: Real-time monitoring of protocol account states and configuration changes
-8. **Transaction & Account Event Filtering**: Separate filtering for transaction events and account state changes
-9. **High Performance**: Optimized for low-latency event processing
-10. **Batch Processing Optimization**: Batch processing events to reduce callback overhead
-11. **Performance Monitoring**: Built-in performance metrics monitoring, including event processing speed, etc.
-12. **Memory Optimization**: Object pooling and caching mechanisms to reduce memory allocations
-13. **Flexible Configuration System**: Support for custom batch sizes, backpressure strategies, channel sizes, and other parameters
-14. **Preset Configurations**: Provides high-throughput and low-latency preset configurations optimized for different use cases
-15. **Backpressure Handling**: Supports blocking and dropping backpressure strategies
-16. **Runtime Configuration Updates**: Supports dynamic configuration parameter updates at runtime
-17. **Full Function Performance Monitoring**: All subscribe_events functions support performance monitoring, automatically collecting and reporting performance metrics
-18. **Graceful Shutdown**: Support for programmatic stop() method for clean shutdown
-19. **Dynamic Subscription Management**: Runtime filter updates without reconnection, enabling adaptive monitoring strategies
+<p align="center">
+    <img src="https://img.shields.io/badge/Rust-000000?style=for-the-badge&logo=rust&logoColor=white" alt="Rust">
+    <img src="https://img.shields.io/badge/Solana-9945FF?style=for-the-badge&logo=solana&logoColor=white" alt="Solana">
+    <img src="https://img.shields.io/badge/Streaming-FF6B6B?style=for-the-badge&logo=livestream&logoColor=white" alt="Real-time Streaming">
+    <img src="https://img.shields.io/badge/gRPC-4285F4?style=for-the-badge&logo=grpc&logoColor=white" alt="gRPC">
+</p>
 
-## Installation
+<p align="center">
+    <a href="README_CN.md">中文</a> | 
+    <a href="README.md">English</a> | 
+    <a href="https://fnzero.dev/">Website</a> |
+    <a href="https://t.me/fnzero_group">Telegram</a> |
+    <a href="https://discord.gg/vuazbGkqQE">Discord</a>
+</p>
+
+---
+
+## Table of Contents
+
+- [🚀 Project Features](#-project-features)
+- [⚡ Installation](#-installation)
+- [⚙️ Configuration System](#️-configuration-system)
+- [📚 Usage Examples](#-usage-examples)
+- [🔧 Supported Protocols](#-supported-protocols)
+- [🌐 Event Streaming Services](#-event-streaming-services)
+- [🏗️ Architecture Features](#️-architecture-features)
+- [📁 Project Structure](#-project-structure)
+- [⚡ Performance Considerations](#-performance-considerations)
+- [📄 License](#-license)
+- [📞 Contact](#-contact)
+- [⚠️ Important Notes](#️-important-notes)
+
+## 🚀 Project Features
+
+### Core Capabilities
+- **Real-time Event Streaming**: Subscribe to live trading events from multiple Solana DEX protocols
+- **Yellowstone gRPC Support**: High-performance event subscription using Yellowstone gRPC
+- **ShredStream Support**: Alternative event streaming using ShredStream protocol
+- **Unified Event Interface**: Consistent event handling across all supported protocols
+
+### Multi-Protocol Support
+- **PumpFun**: Meme coin trading platform events
+- **PumpSwap**: PumpFun's swap protocol events
+- **Bonk**: Token launch platform events (letsbonk.fun)
+- **Raydium CPMM**: Raydium's Concentrated Pool Market Maker events
+- **Raydium CLMM**: Raydium's Concentrated Liquidity Market Maker events
+- **Raydium AMM V4**: Raydium's Automated Market Maker V4 events
+
+### Advanced Features
+- **Event Parsing System**: Automatic parsing and categorization of protocol-specific events
+- **Account State Monitoring**: Real-time monitoring of protocol account states and configuration changes
+- **Transaction & Account Event Filtering**: Separate filtering for transaction events and account state changes
+- **Dynamic Subscription Management**: Runtime filter updates without reconnection, enabling adaptive monitoring strategies
+- **Multi-Filter Support**: Support for multiple transaction and account filters in a single subscription
+- **Advanced Account Filtering**: Memcmp filters for precise account data matching and monitoring
+- **Token2022 Support**: Enhanced support for SPL Token 2022 with extended state parsing
+
+### Performance & Optimization
+- **High Performance**: Optimized for low-latency event processing
+- **Batch Processing Optimization**: Batch processing events to reduce callback overhead
+- **Performance Monitoring**: Built-in performance metrics monitoring, including event processing speed
+- **Memory Optimization**: Object pooling and caching mechanisms to reduce memory allocations
+- **Flexible Configuration System**: Support for custom batch sizes, backpressure strategies, channel sizes
+- **Preset Configurations**: High-throughput and low-latency preset configurations optimized for different use cases
+- **Backpressure Handling**: Supports blocking and dropping backpressure strategies
+- **Runtime Configuration Updates**: Dynamic configuration parameter updates at runtime
+- **Graceful Shutdown**: Support for programmatic stop() method for clean shutdown
+
+## ⚡ Installation
 
 ### Direct Clone
 
@@ -46,17 +108,17 @@ Add the dependency to your `Cargo.toml`:
 
 ```toml
 # Add to your Cargo.toml
-solana-streamer-sdk = { path = "./solana-streamer", version = "0.4.1" }
+solana-streamer-sdk = { path = "./solana-streamer", version = "0.4.12" }
 ```
 
 ### Use crates.io
 
 ```toml
 # Add to your Cargo.toml
-solana-streamer-sdk = "0.4.1"
+solana-streamer-sdk = "0.4.12"
 ```
 
-## Configuration System
+## ⚙️ Configuration System
 
 ### Preset Configurations
 
@@ -115,375 +177,20 @@ let config = StreamClientConfig {
 };
 ```
 
-## Usage Examples
+## 📚 Usage Examples
 
-### Quick Start - Parse Transaction Events
+### Usage Examples Summary Table
 
-You can quickly test the library by running the built-in example that parses transaction events:
-
-```bash
-cargo run --example parse_tx_events
-```
-
-This example demonstrates:
-- How to parse transaction data from Solana mainnet using RPC
-- Event parsing for multiple protocols (PumpFun, PumpSwap, Bonk, Raydium CPMM/CLMM/AMM V4)
-- Transaction details extraction including fees, logs, and compute units
-
-The example uses a predefined transaction signature and shows how to extract protocol-specific events from the transaction data.
-
-### Dynamic Subscription Management Example
-
-Test runtime filter updates without reconnection:
-
-```bash
-cargo run --example dynamic_subscription
-```
-
-This example demonstrates:
-- Creating initial subscriptions with specific protocol filters
-- Updating subscription filters at runtime without reconnection
-- Single subscription enforcement and proper error handling
-- Clean shutdown and resource management
-
-### Advanced Usage - Complete Example
-
-```rust
-use solana_streamer_sdk::{
-    match_event,
-    streaming::{
-        event_parser::{
-            common::{filter::EventTypeFilter, EventType},
-            protocols::{
-                bonk::{
-                    parser::BONK_PROGRAM_ID, BonkGlobalConfigAccountEvent, BonkMigrateToAmmEvent,
-                    BonkMigrateToCpswapEvent, BonkPlatformConfigAccountEvent, BonkPoolCreateEvent,
-                    BonkPoolStateAccountEvent, BonkTradeEvent,
-                },
-                pumpfun::{
-                    parser::PUMPFUN_PROGRAM_ID, PumpFunBondingCurveAccountEvent,
-                    PumpFunCreateTokenEvent, PumpFunGlobalAccountEvent, PumpFunMigrateEvent,
-                    PumpFunTradeEvent,
-                },
-                pumpswap::{
-                    parser::PUMPSWAP_PROGRAM_ID, PumpSwapBuyEvent, PumpSwapCreatePoolEvent,
-                    PumpSwapDepositEvent, PumpSwapGlobalConfigAccountEvent,
-                    PumpSwapPoolAccountEvent, PumpSwapSellEvent, PumpSwapWithdrawEvent,
-                },
-                raydium_amm_v4::{
-                    parser::RAYDIUM_AMM_V4_PROGRAM_ID, RaydiumAmmV4AmmInfoAccountEvent,
-                    RaydiumAmmV4DepositEvent, RaydiumAmmV4Initialize2Event, RaydiumAmmV4SwapEvent,
-                    RaydiumAmmV4WithdrawEvent, RaydiumAmmV4WithdrawPnlEvent,
-                },
-                raydium_clmm::{
-                    parser::RAYDIUM_CLMM_PROGRAM_ID, RaydiumClmmAmmConfigAccountEvent,
-                    RaydiumClmmClosePositionEvent, RaydiumClmmCreatePoolEvent,
-                    RaydiumClmmDecreaseLiquidityV2Event, RaydiumClmmIncreaseLiquidityV2Event,
-                    RaydiumClmmOpenPositionV2Event, RaydiumClmmOpenPositionWithToken22NftEvent,
-                    RaydiumClmmPoolStateAccountEvent, RaydiumClmmSwapEvent, RaydiumClmmSwapV2Event,
-                    RaydiumClmmTickArrayStateAccountEvent,
-                },
-                raydium_cpmm::{
-                    parser::RAYDIUM_CPMM_PROGRAM_ID, RaydiumCpmmAmmConfigAccountEvent,
-                    RaydiumCpmmDepositEvent, RaydiumCpmmInitializeEvent,
-                    RaydiumCpmmPoolStateAccountEvent, RaydiumCpmmSwapEvent,
-                    RaydiumCpmmWithdrawEvent,
-                },
-                BlockMetaEvent,
-            },
-            Protocol, UnifiedEvent,
-        },
-        grpc::ClientConfig,
-        shred::StreamClientConfig,
-        yellowstone_grpc::{AccountFilter, TransactionFilter},
-        ShredStreamGrpc, YellowstoneGrpc,
-    },
-};
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Starting Solana Streamer...");
-    test_grpc().await?;
-    test_shreds().await?;
-    Ok(())
-}
-
-async fn test_grpc() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Subscribing to Yellowstone gRPC events...");
-
-    // Create low-latency configuration
-    let mut config = ClientConfig::low_latency();
-    // Enable performance monitoring, has performance overhead, disabled by default
-    config.enable_metrics = true;
-    let grpc = YellowstoneGrpc::new_with_config(
-        "https://solana-yellowstone-grpc.publicnode.com:443".to_string(),
-        None,
-        config,
-    )?;
-
-    println!("GRPC client created successfully");
-
-    let callback = create_event_callback();
-
-    // Will try to parse corresponding protocol events from transactions
-    let protocols = vec![
-        Protocol::PumpFun,
-        Protocol::PumpSwap,
-        Protocol::Bonk,
-        Protocol::RaydiumCpmm,
-        Protocol::RaydiumClmm,
-        Protocol::RaydiumAmmV4,
-    ];
-
-    println!("Protocols to monitor: {:?}", protocols);
-
-    // Filter accounts
-    let account_include = vec![
-        PUMPFUN_PROGRAM_ID.to_string(),        // Listen to pumpfun program ID
-        PUMPSWAP_PROGRAM_ID.to_string(),       // Listen to pumpswap program ID
-        BONK_PROGRAM_ID.to_string(),           // Listen to bonk program ID
-        RAYDIUM_CPMM_PROGRAM_ID.to_string(),   // Listen to raydium_cpmm program ID
-        RAYDIUM_CLMM_PROGRAM_ID.to_string(),   // Listen to raydium_clmm program ID
-        RAYDIUM_AMM_V4_PROGRAM_ID.to_string(), // Listen to raydium_amm_v4 program ID
-    ];
-    let account_exclude = vec![];
-    let account_required = vec![];
-
-    // Transaction filter for monitoring transaction events
-    let transaction_filter = TransactionFilter {
-        account_include: account_include.clone(),
-        account_exclude,
-        account_required,
-    };
-
-    // Account filter for monitoring account state changes
-    let account_filter = AccountFilter { account: vec![], owner: account_include.clone() };
-
-    // Event type filtering - optional
-    // No event filtering, includes all events
-    let event_type_filter = None;
-    // Only include PumpSwapBuy and PumpSwapSell events
-    // let event_type_filter = Some(EventTypeFilter { include: vec![EventType::PumpSwapBuy, EventType::PumpSwapSell] });
-
-    println!("Starting to listen for events, press Ctrl+C to stop...");
-    println!("Monitoring programs: {:?}", account_include);
-
-    println!("Starting subscription...");
-
-    grpc.subscribe_events_immediate(
-        protocols,
-        None,
-        transaction_filter,
-        account_filter,
-        event_type_filter,
-        None,
-        callback,
-    )
-    .await?;
-
-    // Support stop method, test code - stop after 1000 seconds asynchronously
-    let grpc_clone = grpc.clone();
-    tokio::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_secs(1000)).await;
-        grpc_clone.stop().await;
-    });
-
-    println!("Waiting for Ctrl+C to stop...");
-    tokio::signal::ctrl_c().await?;
-
-    Ok(())
-}
-
-async fn test_shreds() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Subscribing to ShredStream events...");
-
-    // Create low-latency configuration
-    let mut config = StreamClientConfig::low_latency();
-    // Enable performance monitoring, has performance overhead, disabled by default
-    config.enable_metrics = true;
-    let shred_stream =
-        ShredStreamGrpc::new_with_config("http://127.0.0.1:10800".to_string(), config).await?;
-
-    let callback = create_event_callback();
-    let protocols = vec![
-        Protocol::PumpFun,
-        Protocol::PumpSwap,
-        Protocol::Bonk,
-        Protocol::RaydiumCpmm,
-        Protocol::RaydiumClmm,
-        Protocol::RaydiumAmmV4,
-    ];
-
-    // Event filtering
-    // No event filtering, includes all events
-    let event_type_filter = None;
-    // Only include PumpSwapBuy events and PumpSwapSell events
-    // let event_type_filter =
-    //     EventTypeFilter { include: vec![EventType::PumpSwapBuy, EventType::PumpSwapSell] };
-
-    println!("Listening for events, press Ctrl+C to stop...");
-    shred_stream.shredstream_subscribe(protocols, None, event_type_filter, callback).await?;
-
-    // Support stop method, test code - stop after 1000 seconds asynchronously
-    let shred_clone = shred_stream.clone();
-    tokio::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_secs(1000)).await;
-        shred_clone.stop().await;
-    });
-
-    println!("Waiting for Ctrl+C to stop...");
-    tokio::signal::ctrl_c().await?;
-
-    Ok(())
-}
-
-fn create_event_callback() -> impl Fn(Box<dyn UnifiedEvent>) {
-    |event: Box<dyn UnifiedEvent>| {
-        println!("🎉 Event received! Type: {:?}, ID: {}", event.event_type(), event.id());
-        match_event!(event, {
-            // -------------------------- block meta -----------------------
-            BlockMetaEvent => |e: BlockMetaEvent| {
-                println!("BlockMetaEvent: {e:?}");
-            },
-            // -------------------------- bonk -----------------------
-            BonkPoolCreateEvent => |e: BonkPoolCreateEvent| {
-                // When using grpc, you can get block_time from each event
-                println!("block_time: {:?}, block_time_ms: {:?}", e.metadata.block_time, e.metadata.block_time_ms);
-                println!("BonkPoolCreateEvent: {:?}", e.base_mint_param.symbol);
-            },
-            BonkTradeEvent => |e: BonkTradeEvent| {
-                println!("BonkTradeEvent: {e:?}");
-            },
-            BonkMigrateToAmmEvent => |e: BonkMigrateToAmmEvent| {
-                println!("BonkMigrateToAmmEvent: {e:?}");
-            },
-            BonkMigrateToCpswapEvent => |e: BonkMigrateToCpswapEvent| {
-                println!("BonkMigrateToCpswapEvent: {e:?}");
-            },
-            // -------------------------- pumpfun -----------------------
-            PumpFunTradeEvent => |e: PumpFunTradeEvent| {
-                println!("PumpFunTradeEvent: {e:?}");
-            },
-            PumpFunMigrateEvent => |e: PumpFunMigrateEvent| {
-                println!("PumpFunMigrateEvent: {e:?}");
-            },
-            PumpFunCreateTokenEvent => |e: PumpFunCreateTokenEvent| {
-                println!("PumpFunCreateTokenEvent: {e:?}");
-            },
-            // -------------------------- pumpswap -----------------------
-            PumpSwapBuyEvent => |e: PumpSwapBuyEvent| {
-                println!("Buy event: {e:?}");
-            },
-            PumpSwapSellEvent => |e: PumpSwapSellEvent| {
-                println!("Sell event: {e:?}");
-            },
-            PumpSwapCreatePoolEvent => |e: PumpSwapCreatePoolEvent| {
-                println!("CreatePool event: {e:?}");
-            },
-            PumpSwapDepositEvent => |e: PumpSwapDepositEvent| {
-                println!("Deposit event: {e:?}");
-            },
-            PumpSwapWithdrawEvent => |e: PumpSwapWithdrawEvent| {
-                println!("Withdraw event: {e:?}");
-            },
-            // -------------------------- raydium_cpmm -----------------------
-            RaydiumCpmmSwapEvent => |e: RaydiumCpmmSwapEvent| {
-                println!("RaydiumCpmmSwapEvent: {e:?}");
-            },
-            RaydiumCpmmDepositEvent => |e: RaydiumCpmmDepositEvent| {
-                println!("RaydiumCpmmDepositEvent: {e:?}");
-            },
-            RaydiumCpmmInitializeEvent => |e: RaydiumCpmmInitializeEvent| {
-                println!("RaydiumCpmmInitializeEvent: {e:?}");
-            },
-            RaydiumCpmmWithdrawEvent => |e: RaydiumCpmmWithdrawEvent| {
-                println!("RaydiumCpmmWithdrawEvent: {e:?}");
-            },
-            // -------------------------- raydium_clmm -----------------------
-            RaydiumClmmSwapEvent => |e: RaydiumClmmSwapEvent| {
-                println!("RaydiumClmmSwapEvent: {e:?}");
-            },
-            RaydiumClmmSwapV2Event => |e: RaydiumClmmSwapV2Event| {
-                println!("RaydiumClmmSwapV2Event: {e:?}");
-            },
-            RaydiumClmmClosePositionEvent => |e: RaydiumClmmClosePositionEvent| {
-                println!("RaydiumClmmClosePositionEvent: {e:?}");
-            },
-            RaydiumClmmDecreaseLiquidityV2Event => |e: RaydiumClmmDecreaseLiquidityV2Event| {
-                println!("RaydiumClmmDecreaseLiquidityV2Event: {e:?}");
-            },
-            RaydiumClmmCreatePoolEvent => |e: RaydiumClmmCreatePoolEvent| {
-                println!("RaydiumClmmCreatePoolEvent: {e:?}");
-            },
-            RaydiumClmmIncreaseLiquidityV2Event => |e: RaydiumClmmIncreaseLiquidityV2Event| {
-                println!("RaydiumClmmIncreaseLiquidityV2Event: {e:?}");
-            },
-            RaydiumClmmOpenPositionWithToken22NftEvent => |e: RaydiumClmmOpenPositionWithToken22NftEvent| {
-                println!("RaydiumClmmOpenPositionWithToken22NftEvent: {e:?}");
-            },
-            RaydiumClmmOpenPositionV2Event => |e: RaydiumClmmOpenPositionV2Event| {
-                println!("RaydiumClmmOpenPositionV2Event: {e:?}");
-            },
-            // -------------------------- raydium_amm_v4 -----------------------
-            RaydiumAmmV4SwapEvent => |e: RaydiumAmmV4SwapEvent| {
-                println!("RaydiumAmmV4SwapEvent: {e:?}");
-            },
-            RaydiumAmmV4DepositEvent => |e: RaydiumAmmV4DepositEvent| {
-                println!("RaydiumAmmV4DepositEvent: {e:?}");
-            },
-            RaydiumAmmV4Initialize2Event => |e: RaydiumAmmV4Initialize2Event| {
-                println!("RaydiumAmmV4Initialize2Event: {e:?}");
-            },
-            RaydiumAmmV4WithdrawEvent => |e: RaydiumAmmV4WithdrawEvent| {
-                println!("RaydiumAmmV4WithdrawEvent: {e:?}");
-            },
-            RaydiumAmmV4WithdrawPnlEvent => |e: RaydiumAmmV4WithdrawPnlEvent| {
-                println!("RaydiumAmmV4WithdrawPnlEvent: {e:?}");
-            },
-            // -------------------------- account -----------------------
-            BonkPoolStateAccountEvent => |e: BonkPoolStateAccountEvent| {
-                println!("BonkPoolStateAccountEvent: {e:?}");
-            },
-            BonkGlobalConfigAccountEvent => |e: BonkGlobalConfigAccountEvent| {
-                println!("BonkGlobalConfigAccountEvent: {e:?}");
-            },
-            BonkPlatformConfigAccountEvent => |e: BonkPlatformConfigAccountEvent| {
-                println!("BonkPlatformConfigAccountEvent: {e:?}");
-            },
-            PumpSwapGlobalConfigAccountEvent => |e: PumpSwapGlobalConfigAccountEvent| {
-                println!("PumpSwapGlobalConfigAccountEvent: {e:?}");
-            },
-            PumpSwapPoolAccountEvent => |e: PumpSwapPoolAccountEvent| {
-                println!("PumpSwapPoolAccountEvent: {e:?}");
-            },
-            PumpFunBondingCurveAccountEvent => |e: PumpFunBondingCurveAccountEvent| {
-                println!("PumpFunBondingCurveAccountEvent: {e:?}");
-            },
-            PumpFunGlobalAccountEvent => |e: PumpFunGlobalAccountEvent| {
-                println!("PumpFunGlobalAccountEvent: {e:?}");
-            },
-            RaydiumAmmV4AmmInfoAccountEvent => |e: RaydiumAmmV4AmmInfoAccountEvent| {
-                println!("RaydiumAmmV4AmmInfoAccountEvent: {e:?}");
-            },
-            RaydiumClmmAmmConfigAccountEvent => |e: RaydiumClmmAmmConfigAccountEvent| {
-                println!("RaydiumClmmAmmConfigAccountEvent: {e:?}");
-            },
-            RaydiumClmmPoolStateAccountEvent => |e: RaydiumClmmPoolStateAccountEvent| {
-                println!("RaydiumClmmPoolStateAccountEvent: {e:?}");
-            },
-            RaydiumClmmTickArrayStateAccountEvent => |e: RaydiumClmmTickArrayStateAccountEvent| {
-                println!("RaydiumClmmTickArrayStateAccountEvent: {e:?}");
-            },
-            RaydiumCpmmAmmConfigAccountEvent => |e: RaydiumCpmmAmmConfigAccountEvent| {
-                println!("RaydiumCpmmAmmConfigAccountEvent: {e:?}");
-            },
-            RaydiumCpmmPoolStateAccountEvent => |e: RaydiumCpmmPoolStateAccountEvent| {
-                println!("RaydiumCpmmPoolStateAccountEvent: {e:?}");
-            },
-        });
-    }
-}
-```
+| Feature Type | Example File | Description | Run Command | Source Path |
+|---------|---------|------|---------|----------|
+| Yellowstone gRPC Stream | `grpc_example.rs` | Monitor transaction events using Yellowstone gRPC | `cargo run --example grpc_example` | [examples/grpc_example.rs](examples/grpc_example.rs) |
+| ShredStream Stream | `shred_example.rs` | Monitor transaction events using ShredStream | `cargo run --example shred_example` | [examples/shred_example.rs](examples/shred_example.rs) |
+| Parse Transaction Events | `parse_tx_events` | Parse Solana mainnet transaction data | `cargo run --example parse_tx_events` | [examples/parse_tx_events.rs](examples/parse_tx_events.rs) |
+| Dynamic Subscription Management | `dynamic_subscription` | Update filters at runtime | `cargo run --example dynamic_subscription` | [examples/dynamic_subscription.rs](examples/dynamic_subscription.rs) |
+| Token Balance Monitoring | `token_balance_listen_example` | Monitor specific token account balance changes | `cargo run --example token_balance_listen_example` | [examples/token_balance_listen_example.rs](examples/token_balance_listen_example.rs) |
+| Nonce Account Monitoring | `nonce_listen_example` | Track nonce account state changes | `cargo run --example nonce_listen_example` | [examples/nonce_listen_example.rs](examples/nonce_listen_example.rs) |
+| PumpSwap Pool Account Monitoring | `pumpswap_pool_account_listen_example` | Monitor PumpSwap pool accounts using memcmp filters | `cargo run --example pumpswap_pool_account_listen_example` | [examples/pumpswap_pool_account_listen_example.rs](examples/pumpswap_pool_account_listen_example.rs) |
+| Mint ATA Account Monitoring | `mint_all_ata_account_listen_example` | Monitor all associated token accounts for specific mints using memcmp filters | `cargo run --example mint_all_ata_account_listen_example` | [examples/mint_all_ata_account_listen_example.rs](examples/mint_all_ata_account_listen_example.rs) |
 
 ### Event Filtering
 
@@ -551,15 +258,16 @@ Update subscription filters at runtime without reconnecting to the stream.
 ```rust
 // Update filters on existing subscription
 grpc.update_subscription(
-    TransactionFilter {
+    vec![TransactionFilter {
         account_include: vec!["new_program_id".to_string()],
         account_exclude: vec![],
         account_required: vec![],
-    },
-    AccountFilter {
+    }],
+    vec![AccountFilter {
         account: vec![],
         owner: vec![],
-    },
+        filters: vec![],
+    }],
 ).await?;
 ```
 
@@ -570,7 +278,7 @@ grpc.update_subscription(
 
 Note: Multiple subscription attempts on the same client return an error.
 
-## Supported Protocols
+## 🔧 Supported Protocols
 
 - **PumpFun**: Primary meme coin trading platform
 - **PumpSwap**: PumpFun's swap protocol
@@ -579,12 +287,12 @@ Note: Multiple subscription attempts on the same client return an error.
 - **Raydium CLMM**: Raydium's Concentrated Liquidity Market Maker protocol
 - **Raydium AMM V4**: Raydium's Automated Market Maker V4 protocol
 
-## Event Streaming Services
+## 🌐 Event Streaming Services
 
 - **Yellowstone gRPC**: High-performance Solana event streaming
 - **ShredStream**: Alternative event streaming protocol
 
-## Architecture Features
+## 🏗️ Architecture Features
 
 ### Unified Event Interface
 
@@ -604,7 +312,7 @@ Note: Multiple subscription attempts on the same client return an error.
 - **ShredStream Client**: Alternative streaming implementation
 - **Async Processing**: Non-blocking event handling
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 src/
@@ -629,16 +337,7 @@ src/
 └── main.rs           # Example program
 ```
 
-## License
-
-MIT License
-
-## Contact
-
-- Project Repository: https://github.com/0xfnzero/solana-streamer
-- Telegram Group: https://t.me/fnzero_group
-
-## Performance Considerations
+## ⚡ Performance Considerations
 
 1. **Connection Management**: Properly handle connection lifecycle and reconnection
 2. **Event Filtering**: Use protocol filtering to reduce unnecessary event processing
@@ -648,7 +347,20 @@ MIT License
 6. **Performance Monitoring**: Enable performance monitoring to identify bottlenecks and optimization opportunities
 7. **Graceful Shutdown**: Use the stop() method for clean shutdown and implement signal handlers for proper resource cleanup
 
-## Important Notes
+---
+
+## 📄 License
+
+MIT License
+
+## 📞 Contact
+
+- **Website**: https://fnzero.dev/
+- **Project Repository**: https://github.com/0xfnzero/solana-streamer
+- **Telegram Group**: https://t.me/fnzero_group
+- **Discord**: https://discord.gg/vuazbGkqQE
+
+## ⚠️ Important Notes
 
 1. **Network Stability**: Ensure stable network connection for continuous event streaming
 2. **Rate Limiting**: Be aware of rate limits on public gRPC endpoints

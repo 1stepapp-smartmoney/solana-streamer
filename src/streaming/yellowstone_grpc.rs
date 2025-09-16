@@ -5,10 +5,8 @@ use crate::streaming::common::{
 };
 use crate::streaming::event_parser::common::filter::EventTypeFilter;
 use crate::streaming::event_parser::{Protocol, UnifiedEvent};
-use crate::streaming::grpc::{
-    EventPretty, SubscriptionManager,
-};
 use crate::streaming::grpc::pool::factory;
+use crate::streaming::grpc::{EventPretty, SubscriptionManager};
 use anyhow::anyhow;
 use chrono::Local;
 use futures::channel::mpsc;
@@ -19,7 +17,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use tokio::sync::Mutex;
 use yellowstone_grpc_proto::geyser::subscribe_update::UpdateOneof;
-use yellowstone_grpc_proto::geyser::{CommitmentLevel, SubscribeRequest, SubscribeRequestPing};
+use yellowstone_grpc_proto::geyser::{
+    CommitmentLevel, SubscribeRequest, SubscribeRequestFilterAccountsFilter, SubscribeRequestPing,
+};
 
 /// 交易过滤器
 #[derive(Debug, Clone)]
@@ -34,6 +34,7 @@ pub struct TransactionFilter {
 pub struct AccountFilter {
     pub account: Vec<String>,
     pub owner: Vec<String>,
+    pub filters: Vec<SubscribeRequestFilterAccountsFilter>,
 }
 
 pub struct YellowstoneGrpc {
@@ -49,6 +50,8 @@ pub struct YellowstoneGrpc {
     pub active_subscription: Arc<AtomicBool>,
     pub control_tx: Arc<tokio::sync::Mutex<Option<mpsc::Sender<SubscribeRequest>>>>,
     pub current_request: Arc<tokio::sync::RwLock<Option<SubscribeRequest>>>,
+
+    pub event_type_filter: Arc<tokio::sync::RwLock<Option<EventTypeFilter>>>,
 }
 
 impl YellowstoneGrpc {
@@ -87,6 +90,7 @@ impl YellowstoneGrpc {
             active_subscription: Arc::new(AtomicBool::new(false)),
             control_tx: Arc::new(tokio::sync::Mutex::new(None)),
             current_request: Arc::new(tokio::sync::RwLock::new(None)),
+            event_type_filter: Arc::new(tokio::sync::RwLock::new(None)),
         })
     }
 
@@ -107,7 +111,6 @@ impl YellowstoneGrpc {
     pub fn new_low_latency(endpoint: String, x_token: Option<String>) -> AnyResult<Self> {
         Self::new_with_config(endpoint, x_token, StreamClientConfig::low_latency())
     }
-
 
     /// 获取配置
     pub fn get_config(&self) -> &StreamClientConfig {
@@ -162,8 +165,8 @@ impl YellowstoneGrpc {
         &self,
         protocols: Vec<Protocol>,
         bot_wallet: Option<Pubkey>,
-        transaction_filter: TransactionFilter,
-        account_filter: AccountFilter,
+        transaction_filter: Vec<TransactionFilter>,
+        account_filter: Vec<AccountFilter>,
         event_type_filter: Option<EventTypeFilter>,
         commitment: Option<CommitmentLevel>,
         callback: F,
@@ -171,6 +174,7 @@ impl YellowstoneGrpc {
     where
         F: Fn(Box<dyn UnifiedEvent>) + Send + Sync + 'static,
     {
+        *self.event_type_filter.write().await = event_type_filter.clone();
         if self
             .active_subscription
             .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
@@ -185,17 +189,12 @@ impl YellowstoneGrpc {
             metrics_handle = self.metrics_manager.start_auto_monitoring().await;
         }
 
-        let transactions = self.subscription_manager.get_subscribe_request_filter(
-            transaction_filter.account_include,
-            transaction_filter.account_exclude,
-            transaction_filter.account_required,
-            event_type_filter.as_ref(),
-        );
-        let accounts = self.subscription_manager.subscribe_with_account_request(
-            account_filter.account,
-            account_filter.owner,
-            event_type_filter.as_ref(),
-        );
+        let transactions = self
+            .subscription_manager
+            .get_subscribe_request_filter(transaction_filter, event_type_filter.as_ref());
+        let accounts = self
+            .subscription_manager
+            .subscribe_with_account_request(account_filter, event_type_filter.as_ref());
 
         // 订阅事件
         let (mut subscribe_tx, mut stream, subscribe_request) = self
@@ -324,8 +323,8 @@ impl YellowstoneGrpc {
     /// Returns `AnyResult<()>` on success, error on failure
     pub async fn update_subscription(
         &self,
-        transaction_filter: TransactionFilter,
-        account_filter: AccountFilter,
+        transaction_filter: Vec<TransactionFilter>,
+        account_filter: Vec<AccountFilter>,
     ) -> AnyResult<()> {
         let mut control_sender = {
             let control_guard = self.control_tx.lock().await;
@@ -351,16 +350,17 @@ impl YellowstoneGrpc {
         request.transactions = self
             .subscription_manager
             .get_subscribe_request_filter(
-                transaction_filter.account_include,
-                transaction_filter.account_exclude,
-                transaction_filter.account_required,
-                None,
+                transaction_filter,
+                self.event_type_filter.read().await.as_ref(),
             )
             .unwrap_or_default();
 
         request.accounts = self
             .subscription_manager
-            .subscribe_with_account_request(account_filter.account, account_filter.owner, None)
+            .subscribe_with_account_request(
+                account_filter,
+                self.event_type_filter.read().await.as_ref(),
+            )
             .unwrap_or_default();
 
         control_sender
@@ -388,6 +388,7 @@ impl Clone for YellowstoneGrpc {
             subscription_handle: self.subscription_handle.clone(), // 共享同一个 Arc<Mutex<>>
             active_subscription: self.active_subscription.clone(),
             control_tx: self.control_tx.clone(),
+            event_type_filter: self.event_type_filter.clone(),
             current_request: self.current_request.clone(),
         }
     }

@@ -13,10 +13,8 @@ use crate::streaming::event_parser::common::filter::EventTypeFilter;
 use crate::streaming::event_parser::core::account_event_parser::AccountEventParser;
 use crate::streaming::event_parser::core::common_event_parser::CommonEventParser;
 
-use crate::streaming::event_parser::EventParser;
-use crate::streaming::event_parser::{
-    core::traits::UnifiedEvent, protocols::mutil::parser::MutilEventParser, Protocol,
-};
+use crate::streaming::event_parser::core::event_parser::EventParser;
+use crate::streaming::event_parser::{core::traits::UnifiedEvent, Protocol};
 use crate::streaming::grpc::{BackpressureConfig, EventPretty};
 use crate::streaming::shred::TransactionWithSlot;
 use once_cell::sync::OnceCell;
@@ -25,7 +23,7 @@ use once_cell::sync::OnceCell;
 pub struct EventProcessor {
     pub(crate) metrics_manager: MetricsManager,
     pub(crate) config: ClientConfig,
-    pub(crate) parser_cache: OnceCell<Arc<dyn EventParser>>,
+    pub(crate) parser_cache: OnceCell<Arc<EventParser>>,
     pub(crate) protocols: Vec<Protocol>,
     pub(crate) event_type_filter: Option<EventTypeFilter>,
     pub(crate) callback: Option<Arc<dyn Fn(Box<dyn UnifiedEvent>) + Send + Sync>>,
@@ -81,7 +79,7 @@ impl EventProcessor {
         let protocols_ref = &self.protocols;
         let event_type_filter_ref = self.event_type_filter.as_ref();
         self.parser_cache.get_or_init(|| {
-            Arc::new(MutilEventParser::new(protocols_ref.clone(), event_type_filter_ref.cloned()))
+            Arc::new(EventParser::new(protocols_ref.clone(), event_type_filter_ref.cloned()))
         });
 
         if matches!(self.backpressure_config.strategy, BackpressureStrategy::Block) {
@@ -89,7 +87,7 @@ impl EventProcessor {
         }
     }
 
-    pub fn get_parser(&self) -> Arc<dyn EventParser> {
+    pub fn get_parser(&self) -> Arc<EventParser> {
         self.parser_cache.get().unwrap().clone()
     }
 
@@ -321,7 +319,7 @@ impl EventProcessor {
         let tx = transaction_with_slot.transaction;
 
         let slot = transaction_with_slot.slot;
-        if (tx.signatures.len() == 0) {  //非法交易修复，防止crash
+        if tx.signatures.is_empty() {
             return Ok(());
         }
         let signature = tx.signatures[0];

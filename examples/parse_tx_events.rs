@@ -1,10 +1,9 @@
 use anyhow::Result;
 use solana_sdk::commitment_config::CommitmentConfig;
 
+use solana_streamer_sdk::streaming::event_parser::core::event_parser::EventParser;
+use solana_streamer_sdk::streaming::event_parser::Protocol;
 use solana_streamer_sdk::streaming::event_parser::UnifiedEvent;
-use solana_streamer_sdk::streaming::event_parser::{
-    protocols::MutilEventParser, EventParser, Protocol,
-};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -99,7 +98,7 @@ async fn get_single_transaction_details(signature_str: &str) -> Result<()> {
                 Protocol::RaydiumCpmm,
                 Protocol::RaydiumAmmV4,
             ];
-            let parser: Arc<dyn EventParser> = Arc::new(MutilEventParser::new(protocols, None));
+            let parser: Arc<EventParser> = Arc::new(EventParser::new(protocols, None));
             parser
                 .parse_encoded_confirmed_transaction_with_status_meta(
                     signature,

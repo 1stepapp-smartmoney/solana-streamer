@@ -13,6 +13,8 @@ use super::types::TransactionsFilterMap;
 use crate::common::AnyResult;
 use crate::streaming::common::StreamClientConfig as ClientConfig;
 use crate::streaming::event_parser::common::filter::EventTypeFilter;
+use crate::streaming::yellowstone_grpc::AccountFilter;
+use crate::streaming::yellowstone_grpc::TransactionFilter;
 
 /// Subscription manager
 #[derive(Clone)]
@@ -51,15 +53,14 @@ impl SubscriptionManager {
         impl Stream<Item = Result<SubscribeUpdate, Status>>,
         SubscribeRequest,
     )> {
-        let blocks_meta = if event_type_filter.is_some()
-            && event_type_filter.unwrap().include_block_event()
-        {
-            hashmap! { "".to_owned() => SubscribeRequestFilterBlocksMeta {} }
-        } else if event_type_filter.is_none() {
-            hashmap! { "".to_owned() => SubscribeRequestFilterBlocksMeta {} }
-        } else {
-            hashmap! {}
-        };
+        let blocks_meta =
+            if event_type_filter.is_some() && event_type_filter.unwrap().include_block_event() {
+                hashmap! { "".to_owned() => SubscribeRequestFilterBlocksMeta {} }
+            } else if event_type_filter.is_none() {
+                hashmap! { "".to_owned() => SubscribeRequestFilterBlocksMeta {} }
+            } else {
+                hashmap! {}
+            };
         let subscribe_request = SubscribeRequest {
             accounts: accounts.unwrap_or_default(),
             transactions: transactions.unwrap_or_default(),
@@ -79,56 +80,53 @@ impl SubscriptionManager {
     /// Create account subscription request and return stream
     pub fn subscribe_with_account_request(
         &self,
-        account: Vec<String>,
-        owner: Vec<String>,
+        account_filter: Vec<AccountFilter>,
         event_type_filter: Option<&EventTypeFilter>,
     ) -> Option<AccountsFilterMap> {
-        if account.len() == 0 && owner.len() == 0 {
+        if event_type_filter.is_some() && !event_type_filter.unwrap().include_account_event() {
             return None;
         }
-        if event_type_filter.is_some()
-            && !event_type_filter.unwrap().include_account_event()
-        {
+        if account_filter.len() == 0 {
             return None;
         }
         let mut accounts = HashMap::new();
-        accounts.insert(
-            "".to_owned(),
-            SubscribeRequestFilterAccounts {
-                account: account,
-                owner: owner,
-                filters: vec![],
-                nonempty_txn_signature: None,
-            },
-        );
+        for af in account_filter {
+            accounts.insert(
+                "".to_owned(),
+                SubscribeRequestFilterAccounts {
+                    account: af.account,
+                    owner: af.owner,
+                    filters: af.filters,
+                    nonempty_txn_signature: None,
+                },
+            );
+        }
         Some(accounts)
     }
 
     /// Generate subscription request filter
     pub fn get_subscribe_request_filter(
         &self,
-        account_include: Vec<String>,
-        account_exclude: Vec<String>,
-        account_required: Vec<String>,
+        transaction_filter: Vec<TransactionFilter>,
         event_type_filter: Option<&EventTypeFilter>,
     ) -> Option<TransactionsFilterMap> {
-        if event_type_filter.is_some()
-            && !event_type_filter.unwrap().include_transaction_event()
-        {
+        if event_type_filter.is_some() && !event_type_filter.unwrap().include_transaction_event() {
             return None;
         }
         let mut transactions = HashMap::new();
-        transactions.insert(
-            "client".to_string(),
-            SubscribeRequestFilterTransactions {
-                vote: Some(false),
-                failed: Some(false),
-                signature: None,
-                account_include,
-                account_exclude,
-                account_required,
-            },
-        );
+        for tf in transaction_filter {
+            transactions.insert(
+                "client".to_string(),
+                SubscribeRequestFilterTransactions {
+                    vote: Some(false),
+                    failed: Some(false),
+                    signature: None,
+                    account_include: tf.account_include,
+                    account_exclude: tf.account_exclude,
+                    account_required: tf.account_required,
+                },
+            );
+        }
         Some(transactions)
     }
 

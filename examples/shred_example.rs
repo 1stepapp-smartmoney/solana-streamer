@@ -2,31 +2,31 @@ use solana_streamer_sdk::{
     match_event,
     streaming::{
         event_parser::{
-            common::{filter::EventTypeFilter, EventType},
-            core::account_event_parser::CommonAccountEvent,
+            common::EventType,
+            core::account_event_parser::TokenAccountEvent,
             protocols::{
                 bonk::{
-                    parser::BONK_PROGRAM_ID, BonkGlobalConfigAccountEvent, BonkMigrateToAmmEvent,
+                    BonkGlobalConfigAccountEvent, BonkMigrateToAmmEvent,
                     BonkMigrateToCpswapEvent, BonkPlatformConfigAccountEvent, BonkPoolCreateEvent,
                     BonkPoolStateAccountEvent, BonkTradeEvent,
                 },
                 pumpfun::{
-                    parser::PUMPFUN_PROGRAM_ID, PumpFunBondingCurveAccountEvent,
+                    PumpFunBondingCurveAccountEvent,
                     PumpFunCreateTokenEvent, PumpFunGlobalAccountEvent, PumpFunMigrateEvent,
                     PumpFunTradeEvent,
                 },
                 pumpswap::{
-                    parser::PUMPSWAP_PROGRAM_ID, PumpSwapBuyEvent, PumpSwapCreatePoolEvent,
+                    PumpSwapBuyEvent, PumpSwapCreatePoolEvent,
                     PumpSwapDepositEvent, PumpSwapGlobalConfigAccountEvent,
                     PumpSwapPoolAccountEvent, PumpSwapSellEvent, PumpSwapWithdrawEvent,
                 },
                 raydium_amm_v4::{
-                    parser::RAYDIUM_AMM_V4_PROGRAM_ID, RaydiumAmmV4AmmInfoAccountEvent,
+                    RaydiumAmmV4AmmInfoAccountEvent,
                     RaydiumAmmV4DepositEvent, RaydiumAmmV4Initialize2Event, RaydiumAmmV4SwapEvent,
                     RaydiumAmmV4WithdrawEvent, RaydiumAmmV4WithdrawPnlEvent,
                 },
                 raydium_clmm::{
-                    parser::RAYDIUM_CLMM_PROGRAM_ID, RaydiumClmmAmmConfigAccountEvent,
+                    RaydiumClmmAmmConfigAccountEvent,
                     RaydiumClmmClosePositionEvent, RaydiumClmmCreatePoolEvent,
                     RaydiumClmmDecreaseLiquidityV2Event, RaydiumClmmIncreaseLiquidityV2Event,
                     RaydiumClmmOpenPositionV2Event, RaydiumClmmOpenPositionWithToken22NftEvent,
@@ -34,7 +34,7 @@ use solana_streamer_sdk::{
                     RaydiumClmmTickArrayStateAccountEvent,
                 },
                 raydium_cpmm::{
-                    parser::RAYDIUM_CPMM_PROGRAM_ID, RaydiumCpmmAmmConfigAccountEvent,
+                    RaydiumCpmmAmmConfigAccountEvent,
                     RaydiumCpmmDepositEvent, RaydiumCpmmInitializeEvent,
                     RaydiumCpmmPoolStateAccountEvent, RaydiumCpmmSwapEvent,
                     RaydiumCpmmWithdrawEvent,
@@ -43,104 +43,15 @@ use solana_streamer_sdk::{
             },
             Protocol, UnifiedEvent,
         },
-        grpc::ClientConfig,
         shred::StreamClientConfig,
-        yellowstone_grpc::{AccountFilter, TransactionFilter},
-        ShredStreamGrpc, YellowstoneGrpc,
+        ShredStreamGrpc,
     },
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Starting Solana Streamer...");
-    test_grpc().await?;
+    println!("Starting ShredStream Streamer...");
     test_shreds().await?;
-    Ok(())
-}
-
-async fn test_grpc() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Subscribing to Yellowstone gRPC events...");
-
-    // Create low-latency configuration
-    let mut config: ClientConfig = ClientConfig::low_latency();
-    // Enable performance monitoring, has performance overhead, disabled by default
-    config.enable_metrics = true;
-    let grpc = YellowstoneGrpc::new_with_config(
-        "https://solana-yellowstone-grpc.publicnode.com:443".to_string(),
-        None,
-        config,
-    )?;
-
-    println!("GRPC client created successfully");
-
-    let callback = create_event_callback();
-
-    // Will try to parse corresponding protocol events from transactions
-    let protocols = vec![
-        Protocol::PumpFun,
-        Protocol::PumpSwap,
-        Protocol::Bonk,
-        Protocol::RaydiumCpmm,
-        Protocol::RaydiumClmm,
-        Protocol::RaydiumAmmV4,
-    ];
-
-    println!("Protocols to monitor: {:?}", protocols);
-
-    // Filter accounts
-    let account_include = vec![
-        PUMPFUN_PROGRAM_ID.to_string(),        // Listen to pumpfun program ID
-        PUMPSWAP_PROGRAM_ID.to_string(),       // Listen to pumpswap program ID
-        BONK_PROGRAM_ID.to_string(),           // Listen to bonk program ID
-        RAYDIUM_CPMM_PROGRAM_ID.to_string(),   // Listen to raydium_cpmm program ID
-        RAYDIUM_CLMM_PROGRAM_ID.to_string(),   // Listen to raydium_clmm program ID
-        RAYDIUM_AMM_V4_PROGRAM_ID.to_string(), // Listen to raydium_amm_v4 program ID
-    ];
-    let account_exclude = vec![];
-    let account_required = vec![];
-
-    // 监听交易数据
-    let transaction_filter = TransactionFilter {
-        account_include: account_include.clone(),
-        account_exclude,
-        account_required,
-    };
-
-    // 监听属于owner程序的账号数据 -> 账号事件监听
-    let account_filter = AccountFilter { account: vec![], owner: account_include.clone() };
-
-    // Event filtering
-    // No event filtering, includes all events
-    let event_type_filter = None;
-    // Only include PumpSwapBuy events and PumpSwapSell events
-    // let event_type_filter = Some(EventTypeFilter { include: vec![EventType::PumpFunBuy] });
-
-    println!("Starting to listen for events, press Ctrl+C to stop...");
-    println!("Monitoring programs: {:?}", account_include);
-
-    println!("Starting subscription...");
-
-    grpc.subscribe_events_immediate(
-        protocols,
-        None,
-        transaction_filter,
-        account_filter,
-        event_type_filter,
-        None,
-        callback,
-    )
-    .await?;
-
-    // 支持 stop 方法，测试代码 -  异步1000秒之后停止
-    let grpc_clone = grpc.clone();
-    tokio::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_secs(1000)).await;
-        grpc_clone.stop().await;
-    });
-
-    println!("Waiting for Ctrl+C to stop...");
-    tokio::signal::ctrl_c().await?;
-
     Ok(())
 }
 
@@ -172,7 +83,7 @@ async fn test_shreds() -> Result<(), Box<dyn std::error::Error>> {
     //     EventTypeFilter { include: vec![EventType::PumpSwapBuy, EventType::PumpSwapSell] };
 
     println!("Listening for events, press Ctrl+C to stop...");
-    shred_stream.shredstream_subscribe::<_, fn(Vec<Box<dyn UnifiedEvent>>)>(protocols, None,event_type_filter, callback,None).await?;
+    shred_stream.shredstream_subscribe::<_, fn(Vec<Box<dyn UnifiedEvent>>)>(protocols, None, event_type_filter, callback,None).await?;
 
     // 支持 stop 方法，测试代码 - 异步1000秒之后停止
     let shred_clone = shred_stream.clone();
@@ -334,8 +245,8 @@ fn create_event_callback() -> impl Fn(Box<dyn UnifiedEvent>) {
             RaydiumCpmmPoolStateAccountEvent => |e: RaydiumCpmmPoolStateAccountEvent| {
                 println!("RaydiumCpmmPoolStateAccountEvent: {e:?}");
             },
-            CommonAccountEvent => |e: CommonAccountEvent| {
-                println!("CommonAccountEvent: {e:?}");
+            TokenAccountEvent => |e: TokenAccountEvent| {
+                println!("TokenAccountEvent: {e:?}");
             },
         });
     }

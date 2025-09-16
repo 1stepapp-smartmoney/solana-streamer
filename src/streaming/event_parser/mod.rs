@@ -1,17 +1,16 @@
 pub mod common;
 pub mod core;
-pub mod factory;
 pub mod protocols;
 
-pub use core::traits::{EventParser, UnifiedEvent};
-pub use factory::{EventParserFactory, Protocol};
+pub use core::traits::UnifiedEvent;
+pub use protocols::types::Protocol;
 
 /// 宏：简化 downcast_ref 模式匹配
-/// 
+///
 /// # 使用示例
 /// ```
 /// use sol_trade_sdk::event_parser::match_event;
-/// 
+///
 /// match_event!(event, {
 ///     PumpSwapCreatePoolEvent => |typed_event| {
 ///         println!("CreatePool event: {:?}", typed_event);

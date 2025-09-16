@@ -1,6 +1,9 @@
 use crate::{
     common::AnyResult,
-    streaming::{grpc::pool::factory, grpc::EventPretty, yellowstone_grpc::YellowstoneGrpc},
+    streaming::{
+        grpc::{pool::factory, EventPretty},
+        yellowstone_grpc::{TransactionFilter, YellowstoneGrpc},
+    },
 };
 use futures::{SinkExt, StreamExt};
 use log::error;
@@ -39,12 +42,9 @@ impl YellowstoneGrpc {
         let addrs = vec![SYSTEM_PROGRAM_ID.to_string()];
         let account_include = account_include.unwrap_or_default();
         let account_exclude = account_exclude.unwrap_or_default();
-        let transactions = self.subscription_manager.get_subscribe_request_filter(
-            account_include,
-            account_exclude,
-            addrs,
-            None,
-        );
+        let tx_filter =
+            vec![TransactionFilter { account_include, account_exclude, account_required: addrs }];
+        let transactions = self.subscription_manager.get_subscribe_request_filter(tx_filter, None);
         let (mut subscribe_tx, mut stream, _) = self
             .subscription_manager
             .subscribe_with_request(transactions, None, None, None)

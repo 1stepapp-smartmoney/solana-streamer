@@ -24,7 +24,6 @@ use crate::{
 
 // Object pool size configuration
 const EVENT_METADATA_POOL_SIZE: usize = 1000;
-const TRANSFER_DATA_POOL_SIZE: usize = 2000;
 
 /// Event metadata object pool
 pub struct EventMetadataPool {
@@ -104,6 +103,7 @@ pub enum EventType {
     BonkSellExactOut,
     BonkInitialize,
     BonkInitializeV2,
+    BonkInitializeWithToken2022,
     BonkMigrateToAmm,
     BonkMigrateToCpswap,
 
@@ -170,7 +170,8 @@ pub enum EventType {
     AccountRaydiumCpmmAmmConfig,
     AccountRaydiumCpmmPoolState,
 
-    AccountCommon,
+    NonceAccount,
+    TokenAccount,
 
     // Common events
     BlockMeta,
@@ -192,6 +193,8 @@ pub const ACCOUNT_EVENT_TYPES: &[EventType] = &[
     EventType::AccountRaydiumClmmTickArrayState,
     EventType::AccountRaydiumCpmmAmmConfig,
     EventType::AccountRaydiumCpmmPoolState,
+    EventType::TokenAccount,
+    EventType::NonceAccount,
 ];
 pub const BLOCK_EVENT_TYPES: &[EventType] = &[EventType::BlockMeta];
 
@@ -213,6 +216,7 @@ impl fmt::Display for EventType {
             EventType::BonkSellExactOut => write!(f, "BonkSellExactOut"),
             EventType::BonkInitialize => write!(f, "BonkInitialize"),
             EventType::BonkInitializeV2 => write!(f, "BonkInitializeV2"),
+            EventType::BonkInitializeWithToken2022 => write!(f, "BonkInitializeWithToken2022"),
             EventType::BonkMigrateToAmm => write!(f, "BonkMigrateToAmm"),
             EventType::BonkMigrateToCpswap => write!(f, "BonkMigrateToCpswap"),
             EventType::RaydiumCpmmSwapBaseInput => write!(f, "RaydiumCpmmSwapBaseInput"),
@@ -256,7 +260,8 @@ impl fmt::Display for EventType {
             }
             EventType::AccountRaydiumCpmmAmmConfig => write!(f, "AccountRaydiumCpmmAmmConfig"),
             EventType::AccountRaydiumCpmmPoolState => write!(f, "AccountRaydiumCpmmPoolState"),
-            EventType::AccountCommon => write!(f, "AccountCommon"),
+            EventType::TokenAccount => write!(f, "TokenAccount"),
+            EventType::NonceAccount => write!(f, "NonceAccount"),
             EventType::BlockMeta => write!(f, "BlockMeta"),
             EventType::PhotonPumpFunBuy => write!(f, "PhotonPumpFunBuy"),
             EventType::PhotonPumpFunSell => write!(f, "PhotonPumpFunSell"),

@@ -1,16 +1,9 @@
-use std::collections::HashMap;
-use std::sync::OnceLock;
-
-use serde::{Deserialize, Serialize};
-use solana_sdk::program_pack::Pack;
-use solana_sdk::pubkey::Pubkey;
-use spl_token::state::Account;
-
 use crate::impl_unified_event;
 use crate::streaming::common::SimdUtils;
 use crate::streaming::event_parser::common::filter::EventTypeFilter;
+use crate::streaming::event_parser::common::high_performance_clock::elapsed_micros_since;
 use crate::streaming::event_parser::common::{EventMetadata, EventType, ProtocolType};
-use crate::streaming::event_parser::core::traits::{elapsed_micros_since, UnifiedEvent};
+use crate::streaming::event_parser::core::traits::UnifiedEvent;
 use crate::streaming::event_parser::protocols::bonk::parser::BONK_PROGRAM_ID;
 use crate::streaming::event_parser::protocols::pumpfun::parser::PUMPFUN_PROGRAM_ID;
 use crate::streaming::event_parser::protocols::pumpswap::parser::PUMPSWAP_PROGRAM_ID;
@@ -19,6 +12,17 @@ use crate::streaming::event_parser::protocols::raydium_clmm::parser::RAYDIUM_CLM
 use crate::streaming::event_parser::protocols::raydium_cpmm::parser::RAYDIUM_CPMM_PROGRAM_ID;
 use crate::streaming::event_parser::Protocol;
 use crate::streaming::grpc::AccountPretty;
+use serde::{Deserialize, Serialize};
+use solana_account_decoder::parse_nonce::parse_nonce;
+use solana_sdk::program_pack::Pack;
+use solana_sdk::pubkey::Pubkey;
+use spl_token::state::{Account, Mint};
+use spl_token_2022::{
+    extension::StateWithExtensions,
+    state::{Account as Account2022, Mint as Mint2022},
+};
+use std::collections::HashMap;
+use std::sync::OnceLock;
 
 /// 通用事件解析器配置
 #[derive(Debug, Clone)]
@@ -32,7 +36,7 @@ pub struct AccountEventParseConfig {
 
 /// 通用账户事件
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CommonAccountEvent {
+pub struct TokenAccountEvent {
     pub metadata: EventMetadata,
     pub pubkey: Pubkey,
     pub executable: bool,
@@ -40,8 +44,37 @@ pub struct CommonAccountEvent {
     pub owner: Pubkey,
     pub rent_epoch: u64,
     pub amount: Option<u64>,
+    pub token_owner: Pubkey,
 }
-impl_unified_event!(CommonAccountEvent,);
+impl_unified_event!(TokenAccountEvent,);
+
+/// Nonce account event
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NonceAccountEvent {
+    pub metadata: EventMetadata,
+    pub pubkey: Pubkey,
+    pub executable: bool,
+    pub lamports: u64,
+    pub owner: Pubkey,
+    pub rent_epoch: u64,
+    pub nonce: String,
+    pub authority: String,
+}
+impl_unified_event!(NonceAccountEvent,);
+
+/// Nonce account event
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TokenInfoEvent {
+    pub metadata: EventMetadata,
+    pub pubkey: Pubkey,
+    pub executable: bool,
+    pub lamports: u64,
+    pub owner: Pubkey,
+    pub rent_epoch: u64,
+    pub supply: u64,
+    pub decimals: u8,
+}
+impl_unified_event!(TokenInfoEvent,);
 
 /// 账户事件解析器
 pub type AccountEventParserFn =
@@ -52,6 +85,8 @@ static PROTOCOL_CONFIGS_CACHE: OnceLock<HashMap<Protocol, Vec<AccountEventParseC
 
 // 通用账户解析配置的静态缓存
 static COMMON_CONFIG: OnceLock<AccountEventParseConfig> = OnceLock::new();
+// Nonce account config
+static NONCE_CONFIG: OnceLock<AccountEventParseConfig> = OnceLock::new();
 
 pub struct AccountEventParser {}
 
@@ -192,10 +227,23 @@ impl AccountEventParser {
             }
         }
 
+        if event_type_filter.is_none()
+            || event_type_filter.unwrap().include.contains(&EventType::NonceAccount)
+        {
+            let nonce_config = NONCE_CONFIG.get_or_init(|| AccountEventParseConfig {
+                program_id: Pubkey::default(),
+                protocol_type: ProtocolType::Common,
+                event_type: EventType::NonceAccount,
+                account_discriminator: &[1, 0, 0, 0, 1, 0, 0, 0],
+                account_parser: Self::parse_nonce_account_event,
+            });
+            configs.push(nonce_config.clone());
+        }
+
         let common_config = COMMON_CONFIG.get_or_init(|| AccountEventParseConfig {
             program_id: Pubkey::default(),
             protocol_type: ProtocolType::Common,
-            event_type: EventType::AccountCommon,
+            event_type: EventType::TokenAccount,
             account_discriminator: &[],
             account_parser: Self::parse_token_account_event,
         });
@@ -243,17 +291,93 @@ impl AccountEventParser {
         account: &AccountPretty,
         metadata: EventMetadata,
     ) -> Option<Box<dyn UnifiedEvent>> {
-        let info = Account::unpack(&account.data);
-        let mut event = CommonAccountEvent {
-            metadata,
-            pubkey: account.pubkey,
-            executable: account.executable,
-            lamports: account.lamports,
-            owner: account.owner,
-            rent_epoch: account.rent_epoch,
-            amount: if let Ok(info) = info { Some(info.amount) } else { None },
+        let pubkey = account.pubkey;
+        let executable = account.executable;
+        let lamports = account.lamports;
+        let owner = account.owner;
+        let rent_epoch = account.rent_epoch;
+        // Spl Token Mint
+        if account.data.len() >= Mint::LEN {
+            if let Ok(mint) = Mint::unpack_from_slice(&account.data) {
+                let mut event = TokenInfoEvent {
+                    metadata,
+                    pubkey,
+                    executable,
+                    lamports,
+                    owner,
+                    rent_epoch,
+                    supply: mint.supply,
+                    decimals: mint.decimals,
+                };
+                let recv_delta = elapsed_micros_since(account.recv_us);
+                event.set_handle_us(recv_delta);
+                return Some(Box::new(event));
+            }
+        }
+        // Spl Token2022 Mint
+        if account.data.len() >= Account2022::LEN {
+            if let Ok(mint) = StateWithExtensions::<Mint2022>::unpack(&account.data) {
+                let mut event = TokenInfoEvent {
+                    metadata,
+                    pubkey,
+                    executable,
+                    lamports,
+                    owner,
+                    rent_epoch,
+                    supply: mint.base.supply,
+                    decimals: mint.base.decimals,
+                };
+                let recv_delta = elapsed_micros_since(account.recv_us);
+                event.set_handle_us(recv_delta);
+                return Some(Box::new(event));
+            }
+        }
+        let amount = if account.owner == spl_token_2022::ID {
+            StateWithExtensions::<Account2022>::unpack(&account.data)
+                .ok()
+                .map(|info| info.base.amount)
+        } else {
+            Account::unpack(&account.data).ok().map(|info| info.amount)
         };
-        event.set_handle_us(elapsed_micros_since(account.recv_us));
-        return Some(Box::new(event));
+
+        let mut event = TokenAccountEvent {
+            metadata,
+            pubkey,
+            executable,
+            lamports,
+            owner,
+            rent_epoch,
+            amount,
+            token_owner: account.owner,
+        };
+        let recv_delta = elapsed_micros_since(account.recv_us);
+        event.set_handle_us(recv_delta);
+        Some(Box::new(event))
+    }
+
+    pub fn parse_nonce_account_event(
+        account: &AccountPretty,
+        metadata: EventMetadata,
+    ) -> Option<Box<dyn UnifiedEvent>> {
+        if let Ok(info) = parse_nonce(&account.data) {
+            match info {
+                solana_account_decoder::parse_nonce::UiNonceState::Initialized(details) => {
+                    let mut event = NonceAccountEvent {
+                        metadata,
+                        pubkey: account.pubkey,
+                        executable: account.executable,
+                        lamports: account.lamports,
+                        owner: account.owner,
+                        rent_epoch: account.rent_epoch,
+                        nonce: details.blockhash,
+                        authority: details.authority,
+                    };
+                    event.set_handle_us(elapsed_micros_since(account.recv_us));
+                    return Some(Box::new(event));
+                }
+                solana_account_decoder::parse_nonce::UiNonceState::Uninitialized => {}
+            }
+        }
+        None
     }
 }
