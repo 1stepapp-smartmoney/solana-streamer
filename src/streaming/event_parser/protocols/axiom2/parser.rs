@@ -16,7 +16,7 @@ pub const AXIOM_2_PROGRAM_VAR_1_ID: Pubkey =
     solana_sdk::pubkey!("6HB1VBBS8LrdQiR9MZcXV5VdpKFb7vjTMZuQQEQEPioC");
 
 /// 匹配所有事件
-pub const CONFGIS: &[GenericEventParseConfig] = &[
+pub const CONFIGS: &[GenericEventParseConfig] = &[
     GenericEventParseConfig {
         program_id: AXIOM_2_PROGRAM_ID,
         protocol_type: ProtocolType::AxiomTrading2,
@@ -27,6 +27,9 @@ pub const CONFGIS: &[GenericEventParseConfig] = &[
         instruction_parser: Some(parse_axiom_pumpswap_buy_instruction),
         requires_inner_instruction: false,
     },
+];
+
+pub const CONFIGSVAR1: &[GenericEventParseConfig] = &[
     GenericEventParseConfig {
         program_id: AXIOM_2_PROGRAM_VAR_1_ID,
         protocol_type: ProtocolType::AxiomTrading2,
@@ -36,7 +39,7 @@ pub const CONFGIS: &[GenericEventParseConfig] = &[
         inner_instruction_parser: None,
         instruction_parser: Some(parse_axiom_pumpswap_buy_instruction),
         requires_inner_instruction: false,
-    },
+    }
 ];
 
 fn parse_axiom_trade_inner_instruction(

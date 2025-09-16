@@ -23,7 +23,11 @@ pub const CONFIGS: &[GenericEventParseConfig] = &[
         inner_instruction_parser: None,
         instruction_parser: Some(parse_axiom_pumpfun_buy_instruction),
         requires_inner_instruction: false,
-    },
+    }
+];
+
+
+pub const CONFIGSVAR1: &[GenericEventParseConfig] = &[
     GenericEventParseConfig {
         program_id: AXIOM_1_PROGRAM_VAR_1_ID,
         protocol_type: ProtocolType::AxiomTrading1,

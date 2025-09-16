@@ -25,6 +25,8 @@ pub enum Protocol {
     MeteoraDAMMv2,
     AxiomProgram1,
     AxiomProgram2,
+    AxiomProgram1Var1,
+    AxiomProgram2Var1,
 }
 
 impl Protocol {
@@ -39,8 +41,10 @@ impl Protocol {
             Protocol::Phonton => vec![PHOTON_PROGRAM_ID],
             Protocol::MeteoraDBC => vec![METEORA_DBC_PROGRAM_ID],
             Protocol::MeteoraDAMMv2 => vec![METEORA_DAMM_V2_PROGRAM_ID],
-            Protocol::AxiomProgram1 => vec![AXIOM_1_PROGRAM_ID, AXIOM_1_PROGRAM_VAR_1_ID],
-            Protocol::AxiomProgram2 => vec![AXIOM_2_PROGRAM_ID, AXIOM_2_PROGRAM_VAR_1_ID],
+            Protocol::AxiomProgram1 => vec![AXIOM_1_PROGRAM_ID],
+            Protocol::AxiomProgram2 => vec![AXIOM_2_PROGRAM_ID],
+            Protocol::AxiomProgram1Var1 => vec![AXIOM_1_PROGRAM_VAR_1_ID],
+            Protocol::AxiomProgram2Var1 => vec![AXIOM_2_PROGRAM_VAR_1_ID],
 
         }
     }
@@ -60,6 +64,8 @@ impl std::fmt::Display for Protocol {
             Protocol::MeteoraDAMMv2 => write!(f, "MeteoraDAMMv2"),
             Protocol::AxiomProgram1 => write!(f, "AxiomTradingProgram1"),
             Protocol::AxiomProgram2 => write!(f, "AxiomTradingProgram2"),
+            Protocol::AxiomProgram1Var1 => write!(f, "AxiomTradingProgram1Var1"),
+            Protocol::AxiomProgram2Var1 => write!(f, "AxiomTradingProgram2Var1"),
         }
     }
 }
@@ -80,6 +86,8 @@ impl std::str::FromStr for Protocol {
             "meteoradammv2" => Ok(Protocol::MeteoraDAMMv2),
             "axiomprogram1" => Ok(Protocol::AxiomProgram1),
             "axiomprogram2" => Ok(Protocol::AxiomProgram2),
+            "axiomprogram1var1" => Ok(Protocol::AxiomProgram1Var1),
+            "axiomprogram2var1" => Ok(Protocol::AxiomProgram2Var1),
             _ => Err(anyhow!("Unsupported protocol: {}", s)),
         }
     }

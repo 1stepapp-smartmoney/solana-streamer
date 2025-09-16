@@ -35,6 +35,11 @@ use std::{
     sync::{Arc, LazyLock},
 };
 use yellowstone_grpc_proto::geyser::SubscribeUpdateTransactionInfo;
+use crate::streaming::event_parser::protocols::axiom2::parser::{AXIOM_2_PROGRAM_ID, AXIOM_2_PROGRAM_VAR_1_ID};
+use crate::streaming::event_parser::protocols::axiom::parser::{AXIOM_1_PROGRAM_ID, AXIOM_1_PROGRAM_VAR_1_ID};
+use crate::streaming::event_parser::protocols::meteora_dammv2::parser::METEORA_DAMM_V2_PROGRAM_ID;
+use crate::streaming::event_parser::protocols::meteora_dbc::parser::METEORA_DBC_PROGRAM_ID;
+use crate::streaming::event_parser::protocols::photon::parser::PHOTON_PROGRAM_ID;
 
 /// 高性能账户公钥缓存，避免重复Vec分配
 #[derive(Debug)]
@@ -107,7 +112,7 @@ pub static EVENT_PARSERS: LazyLock<HashMap<Protocol, (Pubkey, &[GenericEventPars
     LazyLock::new(|| {
         // 预分配容量，避免动态扩容
         let mut parsers: HashMap<Protocol, (Pubkey, &[GenericEventParseConfig])> =
-            HashMap::with_capacity(6);
+            HashMap::with_capacity(13);
         parsers.insert(
             Protocol::PumpSwap,
             (
@@ -145,6 +150,55 @@ pub static EVENT_PARSERS: LazyLock<HashMap<Protocol, (Pubkey, &[GenericEventPars
             (
                 RAYDIUM_AMM_V4_PROGRAM_ID,
                 crate::streaming::event_parser::protocols::raydium_amm_v4::parser::CONFIGS,
+            ),
+        );
+        parsers.insert(
+            Protocol::Phonton,
+            (
+                PHOTON_PROGRAM_ID,
+                crate::streaming::event_parser::protocols::photon::parser::CONFIGS,
+            ),
+        );
+        parsers.insert(
+            Protocol::MeteoraDBC,
+            (
+                METEORA_DBC_PROGRAM_ID,
+                crate::streaming::event_parser::protocols::meteora_dbc::parser::CONFIGS,
+            ),
+        );
+        parsers.insert(
+            Protocol::MeteoraDAMMv2,
+            (
+                METEORA_DAMM_V2_PROGRAM_ID,
+                crate::streaming::event_parser::protocols::meteora_dammv2::parser::CONFIGS,
+            ),
+        );
+        parsers.insert(
+            Protocol::AxiomProgram1,
+            (
+                AXIOM_1_PROGRAM_ID,
+                crate::streaming::event_parser::protocols::axiom::parser::CONFIGS,
+            ),
+        );
+        parsers.insert(
+            Protocol::AxiomProgram1Var1,
+            (
+                AXIOM_1_PROGRAM_VAR_1_ID,
+                crate::streaming::event_parser::protocols::axiom::parser::CONFIGSVAR1,
+            ),
+        );
+        parsers.insert(
+            Protocol::AxiomProgram2,
+            (
+                AXIOM_2_PROGRAM_ID,
+                crate::streaming::event_parser::protocols::axiom2::parser::CONFIGS,
+            ),
+        );
+        parsers.insert(
+            Protocol::AxiomProgram2Var1,
+            (
+                AXIOM_2_PROGRAM_VAR_1_ID,
+                crate::streaming::event_parser::protocols::axiom2::parser::CONFIGSVAR1,
             ),
         );
         parsers
