@@ -55,7 +55,7 @@ pub const CONFIGS: &[GenericEventParseConfig] = &[
         inner_instruction_parser: Some(parse_migrate_inner_instruction),
         instruction_parser: Some(parse_migrate_instruction),
         // Failed migrations lack inner instruction data (typically "Bonding curve already migrated")
-        requires_inner_instruction: true,
+        requires_inner_instruction: false,
     },
 ];
 
