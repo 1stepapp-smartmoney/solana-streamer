@@ -196,7 +196,7 @@ fn parse_sell_instruction(
     accounts: &[Pubkey],
     metadata: EventMetadata,
 ) -> Option<Box<dyn UnifiedEvent>> {
-    if data.len() < 16 || accounts.len() < 11 {
+    if data.len() < 16 || accounts.len() < 12 {
         return None;
     }
     let amount = u64::from_le_bytes(data[0..8].try_into().unwrap());
